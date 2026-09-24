@@ -2492,23 +2492,30 @@ function initParticles() {
 // =========================================================================
 // SECTION 15: INITIALIZATION & DIRECT URL PARAMETER CHECK
 // =========================================================================
-window.addEventListener("DOMContentLoaded", async () => {
-  // Init particles
-  initParticles();
+// Helper to run startup logic whether DOM is already ready or loading
+function bootstrapApp() {
+  try {
+    initParticles();
+  } catch (err) {
+    console.warn("Particles init note:", err);
+  }
 
-  // Init sync engine
-  await initSyncEngine();
+  initSyncEngine().catch((err) => {
+    console.warn("Sync engine init note:", err);
+  });
 
   // Check URL parameters for direct room link (?room=LOVE7K)
   const urlParams = new URLSearchParams(window.location.search);
   const directRoomParam = urlParams.get("room") || (window.location.hash.startsWith("#room=") ? window.location.hash.replace("#room=", "") : null);
 
-  if (directRoomParam) {
+  if (directRoomParam && DOM.inputRoomCode) {
     const cleanedCode = directRoomParam.trim().toUpperCase();
     if (cleanedCode.length === 6) {
       DOM.inputRoomCode.value = cleanedCode;
       showScreen("JOIN_ROOM");
       showToast(`Detected room ${cleanedCode}. Tap Join to enter!`, "info");
+      initSitePoliciesAndNavEngine();
+      initPWAAppEngine();
       return;
     }
   }
@@ -2521,7 +2528,13 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Initialize Progressive Web App (PWA) Engine & Install Handlers
   initPWAAppEngine();
-});
+}
+
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", bootstrapApp);
+} else {
+  bootstrapApp();
+}
 
 // =========================================================================
 // SECTION 16: NAVIGATION, MODALS & PRIVACY POLICIES ENGINE
