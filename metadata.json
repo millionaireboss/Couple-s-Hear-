@@ -1,0 +1,6 @@
+{
+  "name": "Couple's Hear",
+  "description": "Real-time synchronized music listening application for couples with room codes and shared playback.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

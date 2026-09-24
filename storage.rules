@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /rooms/{roomId}/{allPaths=**} {
+      // Allow reading audio files by anyone who has the room code link
+      allow read: if roomId.size() == 6;
+
+      // Allow uploading audio files with max size of 45MB and valid audio mime type
+      allow write: if roomId.size() == 6
+                   && request.resource.size < 45 * 1024 * 1024
+                   && request.resource.contentType.matches('audio/.*');
+    }
+  }
+}

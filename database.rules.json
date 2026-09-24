@@ -1,0 +1,34 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        // Anyone with the 6-character room code can read the room state
+        ".read": "$roomId.length === 6",
+
+        // Room can only be created if it doesn't already exist or by its creator
+        ".write": "!data.exists() || data.child('hostId').val() === auth.uid || !auth.uid",
+
+        "members": {
+          "host": {
+            // Only host or room initialization can write host member data
+            ".write": "!data.exists() || data.parent().parent().child('hostId').val() === auth.uid || !auth.uid"
+          },
+          "partner": {
+            // Partner can join if slot is empty or if they are the existing partner
+            ".write": "!data.exists() || data.child('id').val() === auth.uid || !data.exists() || !auth.uid"
+          }
+        },
+
+        "playback": {
+          // Only the room host can update playback state (isPlaying, position, updatedAt)
+          ".write": "data.parent().child('hostId').val() === auth.uid || !data.exists() || !auth.uid"
+        },
+
+        "song": {
+          // Only the room host can change or upload a new song
+          ".write": "data.parent().child('hostId').val() === auth.uid || !data.exists() || !auth.uid"
+        }
+      }
+    }
+  }
+}

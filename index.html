@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Couple’s Hear – Real-Time Synchronized Music for Couples</title>
+  <meta name="description" content="Listen to synchronized music together in real-time private rooms. Built for long-distance couples, friends, and shared romantic audio experiences." />
+  <meta name="keywords" content="synchronized music for couples, listen together online, long distance relationship music, shared audio player, synchronized playback, real-time audio sync, couple playlist, stream music together" />
+  <meta name="author" content="Couple's Hear Team" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="theme-color" content="#f472b6" />
+  <link rel="canonical" href="https://coupleshear.com/" />
+
+  <!-- OpenGraph Social Meta -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Couple’s Hear – Real-Time Synchronized Music for Couples" />
+  <meta property="og:description" content="Listen to synchronized music together in real-time private rooms. Built for long-distance couples, friends, and shared romantic audio experiences." />
+  <meta property="og:url" content="https://coupleshear.com/" />
+  <meta property="og:site_name" content="Couple’s Hear" />
+  <meta property="og:locale" content="en_US" />
+
+  <!-- Twitter / X Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Couple’s Hear – Real-Time Synchronized Music for Couples" />
+  <meta name="twitter:description" content="Listen to synchronized music together in real-time private rooms. Built for long-distance couples, friends, and shared romantic audio experiences." />
+
+
+  <!-- Schema.org JSON-LD Structured Data: WebApplication -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Couple's Hear",
+    "url": "https://coupleshear.com",
+    "description": "Listen to synchronized music together in real-time private rooms. Built for long-distance couples, friends, and shared romantic audio experiences.",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Web, iOS, Android, macOS, Windows",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "featureList": [
+      "Real-time synchronized audio playback",
+      "Private 6-character room codes",
+      "Sub-second drift correction",
+      "Built-in romantic playlists and custom MP3 uploads",
+      "Cross-device iOS, Android, and Desktop compatibility"
+    ]
+  }
+  </script>
+
+  <!-- Schema.org JSON-LD Structured Data: FAQPage -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How does Couple's Hear keep music synchronized without lag?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Couple's Hear uses high-precision server timestamps, active drift correction, and Server-Sent Events (SSE) to measure network transit latency. Both listeners are automatically calibrated to within milliseconds of each other."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Couple's Hear free to use, and do we need to register?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Couple's Hear is 100% free with no account creation or registration required. You simply generate a room code and share it with your partner."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can my partner and I listen on different devices like iPhone and PC?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Couple's Hear is built as a progressive web application fully compatible with iOS Safari, Android Chrome, Windows, and macOS browsers."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can we upload our own romantic songs and voice memos?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! The room host or partner can upload MP3, WAV, AAC, and M4A audio files directly to the shared session playlist for instant synchronized playback."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Progressive Web App (PWA) & Mobile App Manifest -->
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="icon" type="image/png" sizes="64x64" href="./favicon-64x64.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Couple'sHear" />
+  <meta name="application-name" content="Couple's Hear" />
+  <meta name="msapplication-TileColor" content="#0f172a" />
+
+  <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- Ambient floating particles background -->
+  <canvas id="particles-canvas" class="particles-bg"></canvas>
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- ==================== INSTALL NOTIFICATION BAR ==================== -->
+  <aside id="top-install-bar" class="install-notification-bar" role="alert" aria-label="Install App Notification">
+    <div class="notification-bar-card" id="notification-card-clickable" title="Click to install Couple's Hear on your device">
+      <div class="notification-left-section">
+        <div class="notification-icon-container">
+          <img src="./pwa-192x192.png" alt="Couple's Hear App" class="notification-app-icon" />
+          <span class="notification-pulse-dot" aria-hidden="true"></span>
+        </div>
+        <div class="notification-content-text">
+          <div class="notification-badge-row">
+            <span class="notification-system-pill">NOTIFICATION</span>
+            <span class="notification-app-title">Couple’s Hear App</span>
+          </div>
+          <p class="notification-message">Install this app on your device for instant 1-tap playback &amp; synchronized audio.</p>
+        </div>
+      </div>
+      <div class="notification-right-section">
+        <button type="button" id="btn-top-bar-install" class="notification-install-action-btn" title="Install Couple's Hear on your device" aria-label="Install Couple's Hear on your device">
+          <svg class="notification-download-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span class="notification-btn-text">INSTALL NOW</span>
+        </button>
+        <button type="button" id="btn-dismiss-top-bar" class="notification-dismiss-btn" title="Dismiss notification" aria-label="Dismiss notification">&times;</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==================== 1. LANDING SCREEN ==================== -->
+  <section id="landing-screen" class="screen landing-screen active">
+    <!-- Top Bar with Install Button at the top of landing screen -->
+    <div class="landing-top-bar">
+      <div class="landing-top-brand">
+        <span class="brand-sub-badge">PWA &bull; STANDALONE APP</span>
+      </div>
+      <button type="button" id="btn-landing-install" class="pwa-install-nav-btn landing-top-install-btn" title="Install Couple's Hear App" aria-label="Install Couple's Hear App">
+        <svg class="install-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span class="install-label">INSTALL APP</span>
+      </button>
+    </div>
+
+    <div class="landing-content">
+      <div class="brand-badge">
+        <svg class="icon-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+        </svg>
+        <span>REAL-TIME COUPLE AUDIO</span>
+      </div>
+
+      <h1 class="landing-title">COUPLE’S HEAR</h1>
+      <p class="landing-subtitle">Listen together, even when you're apart.</p>
+
+      <div class="landing-bottom">
+        <button id="btn-enter-app" class="landing-tap-btn" aria-label="Tap to Hear Couples">
+          <span class="pulse-ring"></span>
+          <span class="btn-text">TAP TO HEAR COUPLES</span>
+          <svg class="icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <span class="landing-hint">Tap anywhere to begin</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== MAIN APPLICATION CONTAINER ==================== -->
+  <div id="app-wrapper" class="app-wrapper hidden">
+    <!-- Top Navigation Bar -->
+    <header class="top-nav" id="top-nav">
+      <div class="nav-left">
+        <div class="logo-mark" id="nav-logo-btn" title="Couple's Hear Home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">COUPLE’S HEAR</span>
+          <span id="header-room-badge" class="room-pill hidden">ROOM: <strong id="header-room-code">------</strong></span>
+        </div>
+      </div>
+
+      <!-- Center Navigation Links -->
+      <nav class="nav-center-menu" id="nav-center-menu" aria-label="Site Navigation">
+        <button type="button" class="nav-menu-link active" data-target-action="home">Home</button>
+        <button type="button" class="nav-menu-link" data-target-action="how-it-works">How It Works</button>
+        <button type="button" class="nav-menu-link" data-target-action="features">Features</button>
+        <button type="button" class="nav-menu-link" data-target-action="music-guide">Music Guide</button>
+        <button type="button" class="nav-menu-link" data-target-action="faq">FAQ</button>
+        <button type="button" class="nav-menu-link" data-open-modal="about-us">About Us</button>
+        <button type="button" class="nav-menu-link" data-open-modal="contact-us">Contact</button>
+        <button type="button" class="nav-menu-link" data-open-modal="privacy-policy">Privacy Policy</button>
+      </nav>
+
+      <div class="nav-right">
+        <!-- In-App PWA Install Button (Always visible at the top) -->
+        <button id="btn-pwa-install" class="pwa-install-nav-btn" title="Install Couple's Hear App" aria-label="Install Couple's Hear App">
+          <svg class="install-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span class="install-label">INSTALL APP</span>
+        </button>
+
+        <div id="connection-indicator" class="connection-indicator hidden">
+          <span class="status-dot green"></span>
+          <span id="connection-status-text">CONNECTED</span>
+        </div>
+        <button id="btn-mobile-nav-toggle" class="icon-btn mobile-only" title="Toggle Navigation Menu" aria-label="Toggle Navigation Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+        <button id="btn-firebase-settings" class="icon-btn" title="Firebase Settings" aria-label="Firebase Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+        <button id="btn-nav-leave" class="icon-btn danger hidden" title="Leave Room" aria-label="Leave Room">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Top Mode Banner (informative) -->
+    <div id="backend-status-banner" class="backend-banner">
+      <div class="banner-inner">
+        <span class="banner-icon">✨</span>
+        <span id="backend-banner-text">Synchronized Session Engine Active (Dual-Device Firebase Ready)</span>
+        <button id="btn-banner-config" class="banner-link">Settings</button>
+      </div>
+    </div>
+
+    <main class="main-container">
+
+      <!-- ==================== 2. HOME SCREEN ==================== -->
+      <section id="home-screen" class="view-panel active">
+        <div class="home-hero">
+          <h2 class="view-title">COUPLE’S HEAR</h2>
+          <p class="view-subtitle">Listen to the same music together.</p>
+
+          <!-- User Name Customizer -->
+          <div class="user-profile-badge">
+            <span class="badge-label">Your Name:</span>
+            <input type="text" id="user-display-name-input" class="name-inline-input" value="Host" maxlength="20" placeholder="Enter your name" />
+          </div>
+        </div>
+
+        <div class="cards-grid">
+          <!-- CREATE ROOM CARD -->
+          <div class="action-card create-card" id="card-create-room">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+              </svg>
+            </div>
+            <h3 class="card-title">CREATE ROOM</h3>
+            <p class="card-desc">Create a private room<br />and invite your partner.</p>
+            <button id="btn-open-create-room" class="btn-primary">
+              <span>CREATE ROOM</span>
+              <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
+
+          <!-- JOIN ROOM CARD -->
+          <div class="action-card join-card" id="card-join-room">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+              </svg>
+            </div>
+            <h3 class="card-title">JOIN ROOM</h3>
+            <p class="card-desc">Enter your partner's<br />room code.</p>
+            <button id="btn-open-join-room" class="btn-secondary">
+              <span>JOIN ROOM</span>
+              <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+
+        <!-- ==================== HOW IT WORKS SECTION ==================== -->
+        <section class="editorial-section" id="section-how-it-works">
+          <div class="editorial-header">
+            <span class="editorial-tag">STEP-BY-STEP GUIDE</span>
+            <h3 class="editorial-title">How Couple's Hear Works</h3>
+            <p class="editorial-lead">Synchronizing sound across thousands of miles shouldn't require complex software. We built Couple's Hear to connect two people in seconds.</p>
+          </div>
+
+          <div class="steps-grid">
+            <div class="step-card">
+              <div class="step-number">01</div>
+              <div class="step-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+              </div>
+              <h4 class="step-title">Create a Private Room</h4>
+              <p class="step-desc">Tap <strong>CREATE ROOM</strong> to spawn a secure, ephemeral 6-character room code. No registration, no passwords, and zero personal data collected.</p>
+            </div>
+
+            <div class="step-card">
+              <div class="step-number">02</div>
+              <div class="step-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="18" cy="5" r="3"></circle>
+                  <circle cx="6" cy="12" r="3"></circle>
+                  <circle cx="18" cy="19" r="3"></circle>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+              </div>
+              <h4 class="step-title">Share Code With Your Partner</h4>
+              <p class="step-desc">Send the 6-character code or copy the one-tap direct invite link. Your partner can paste the link on their phone, tablet, or laptop to join immediately.</p>
+            </div>
+
+            <div class="step-card">
+              <div class="step-number">03</div>
+              <div class="step-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 20v-6M6 20V10M18 20V4"></path>
+                </svg>
+              </div>
+              <h4 class="step-title">Millisecond Clock Alignment</h4>
+              <p class="step-desc">Our synchronization algorithm calculates network transit latency and clock offset. Both devices dynamically adjust playback speed to eliminate audio echo.</p>
+            </div>
+
+            <div class="step-card">
+              <div class="step-number">04</div>
+              <div class="step-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18V5l12-2v13"></path>
+                  <circle cx="6" cy="18" r="3"></circle>
+                  <circle cx="18" cy="16" r="3"></circle>
+                </svg>
+              </div>
+              <h4 class="step-title">Listen Together in Unison</h4>
+              <p class="step-desc">When either of you presses Play, Pause, or seeks forward, both audio players respond simultaneously. Enjoy built-in romantic tracks or upload your own favorites.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== KEY FEATURES SECTION ==================== -->
+        <section class="editorial-section" id="section-features">
+          <div class="editorial-header">
+            <span class="editorial-tag">AUDIO TECHNOLOGY</span>
+            <h3 class="editorial-title">Engineered for Acoustic Perfection</h3>
+            <p class="editorial-lead">Built with state-of-the-art Web Audio APIs, Server-Sent Events, and adaptive buffer management for a seamless listening experience.</p>
+          </div>
+
+          <div class="features-grid">
+            <div class="feature-item">
+              <div class="feature-icon-badge">⚡</div>
+              <h4>Sub-Second Drift Correction</h4>
+              <p>Network speeds fluctuate. Couple's Hear continuously samples playback timestamps and applies micro-corrections so neither partner falls behind.</p>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-icon-badge">🎵</div>
+              <h4>Curated Romantic Melodies</h4>
+              <p>Includes pre-loaded, copyright-safe serene acoustic melodies, lo-fi warm beats, and relaxing piano sonatas ready to play with one tap.</p>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-icon-badge">📁</div>
+              <h4>Multi-File Audio Uploads</h4>
+              <p>Upload your own MP3, WAV, AAC, or M4A songs, voice notes, and mixtape playlists. All files are streamed with full HTTP range-request support.</p>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-icon-badge">🔒</div>
+              <h4>Private &amp; Ephemeral Rooms</h4>
+              <p>Rooms exist only as long as you're listening together. No audio is ever indexed or sold, and sessions dissolve automatically when you disconnect.</p>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-icon-badge">📱</div>
+              <h4>Universal Cross-Device Support</h4>
+              <p>Works seamlessly across iOS Safari, Android Chrome, Windows, macOS, and Linux without downloading heavy apps or plugins.</p>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-icon-badge">✨</div>
+              <h4>Ambient Particle Visualizer</h4>
+              <p>A soothing, responsive ambient light particle canvas reacts to audio activity, creating a warm, cozy atmosphere for your virtual dates.</p>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ==================== MUSIC & RELATIONSHIP EDITORIAL GUIDE ==================== -->
+        <section class="editorial-section" id="section-music-guide">
+          <div class="editorial-header">
+            <span class="editorial-tag">RELATIONSHIP &amp; AUDIO INSIGHTS</span>
+            <h3 class="editorial-title">The Art &amp; Science of Shared Listening</h3>
+            <p class="editorial-lead">How shared sound frequencies bridge emotional distance and nurture long-distance relationships.</p>
+          </div>
+
+          <div class="articles-grid">
+            <article class="article-card">
+              <div class="article-meta">
+                <span class="article-category">NEUROSCIENCE</span>
+                <span class="article-read-time">4 MIN READ</span>
+              </div>
+              <h4 class="article-heading">Why Listening to Music Together Sparks Emotional Closeness</h4>
+              <p class="article-excerpt">
+                Scientific research into neuro-acoustics reveals that when two individuals listen to the same musical rhythm simultaneously, their neural oscillations synchronize. This phenomenon, known as "neural entrainment," stimulates the release of oxytocin and dopamine—the same neurochemicals associated with physical touch and bonding. For couples separated by geography, synchronized music acts as an emotional surrogate for physical proximity.
+              </p>
+            </article>
+
+            <article class="article-card">
+              <div class="article-meta">
+                <span class="article-category">DATE IDEAS</span>
+                <span class="article-read-time">5 MIN READ</span>
+              </div>
+              <h4 class="article-heading">5 Romantic Virtual Music Date Ideas for Long-Distance Couples</h4>
+              <p class="article-excerpt">
+                Keep the magic alive across time zones with intentional shared listening rituals:
+              </p>
+              <ul class="article-bullets">
+                <li><strong>The Sunrise &amp; Sunset Serenade:</strong> Coordinate coffee or tea while streaming relaxing acoustic melodies as daylight shifts.</li>
+                <li><strong>Virtual Study &amp; Focus Sessions:</strong> Queue up gentle lo-fi tracks to work quietly side-by-side on video or voice call.</li>
+                <li><strong>Bedtime Sleepcasts:</strong> Wind down with ambient piano music and falling rain sounds to drift to sleep together.</li>
+                <li><strong>The Nostalgia Mixtape:</strong> Upload songs that played during your first road trip, concert, or anniversary.</li>
+                <li><strong>Surprise Dedications:</strong> Take turns queuing a secret track that conveys your feelings for each other.</li>
+              </ul>
+            </article>
+
+            <article class="article-card">
+              <div class="article-meta">
+                <span class="article-category">AUDIO ADVICE</span>
+                <span class="article-read-time">3 MIN READ</span>
+              </div>
+              <h4 class="article-heading">Optimizing Your Setup for Pure, Lag-Free Synchronized Sound</h4>
+              <p class="article-excerpt">
+                To experience the highest acoustic intimacy, we recommend using comfortable over-ear headphones with open soundstages, connecting to stable Wi-Fi or 4G/5G, and keeping both devices on Couple's Hear with volume balanced at 70%. When uploading personal MP3 files, 320kbps CBR or 256kbps VBR provides studio-grade clarity without overloading mobile data connections.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <!-- ==================== FREQUENTLY ASKED QUESTIONS ==================== -->
+        <section class="editorial-section" id="section-faq">
+          <div class="editorial-header">
+            <span class="editorial-tag">QUESTIONS &amp; ANSWERS</span>
+            <h3 class="editorial-title">Frequently Asked Questions</h3>
+            <p class="editorial-lead">Everything you need to know about Couple's Hear, real-time audio synchronization, and privacy.</p>
+          </div>
+
+          <div class="faq-accordion" id="faq-accordion-list">
+            <details class="faq-item" open>
+              <summary class="faq-question">
+                <span>How does Couple's Hear keep music synchronized without audio lag?</span>
+                <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </summary>
+              <div class="faq-answer">
+                <p>Couple's Hear employs a dual-synchronization architecture. When the host plays or pauses, an event timestamp is transmitted via Server-Sent Events (SSE). The partner's browser calculates the elapsed network transmission time and immediately offsets the playback position to match the exact fraction of a second. An active drift correction loop continuously verifies synchronization every few seconds.</p>
+              </div>
+            </details>
+
+            <details class="faq-item">
+              <summary class="faq-question">
+                <span>Is Couple's Hear completely free to use? Do we need to register?</span>
+                <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </summary>
+              <div class="faq-answer">
+                <p>Yes, Couple's Hear is 100% free with no account creation, passwords, or paywalls. We believe romance and human connection should never be restricted behind subscription models.</p>
+              </div>
+            </details>
+
+            <details class="faq-item">
+              <summary class="faq-question">
+                <span>Can my partner and I listen on different devices (e.g. iPhone and Windows PC)?</span>
+                <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </summary>
+              <div class="faq-answer">
+                <p>Absolutely! Couple's Hear is built to be device-agnostic. One partner can be on an iPhone using Safari while the other is on a Windows PC running Google Chrome or a Mac running Firefox. The room code connects both regardless of hardware or operating system.</p>
+              </div>
+            </details>
+
+            <details class="faq-item">
+              <summary class="faq-question">
+                <span>Can we upload our own favorite romantic songs and voice notes?</span>
+                <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </summary>
+              <div class="faq-answer">
+                <p>Yes! In addition to our built-in relaxing melodies, the room host can drag and drop or select multiple personal audio files (.mp3, .wav, .m4a, .ogg). Once uploaded, the track appears in the shared playlist and can be played simultaneously for both of you.</p>
+              </div>
+            </details>
+
+            <details class="faq-item">
+              <summary class="faq-question">
+                <span>Why do mobile browsers sometimes require a tap before audio starts?</span>
+                <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </summary>
+              <div class="faq-answer">
+                <p>To protect users from unexpected loud noises and cellular data usage, modern mobile operating systems (like Apple iOS and Google Android) enforce strict autoplay policies requiring at least one user gesture. When joining a room on mobile, Couple's Hear displays a friendly "Start Synchronized Audio" button to unlock the media context.</p>
+              </div>
+            </details>
+
+            <details class="faq-item">
+              <summary class="faq-question">
+                <span>How is our privacy protected during listening sessions?</span>
+                <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </summary>
+              <div class="faq-answer">
+                <p>We respect your intimate moments. Rooms are strictly capped at two members, communication occurs over secure HTTPS/WSS channels, and session data is ephemeral. We never sell user data, track personal browsing habits outside this site, or retain personal audio files beyond session utility.</p>
+              </div>
+            </details>
+
+            <details class="faq-item">
+              <summary class="faq-question">
+                <span>Is Couple's Hear free of advertisements?</span>
+                <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </summary>
+              <div class="faq-answer">
+                <p>Yes! Couple's Hear is completely free of banner advertisements, pop-ups, and commercial tracking. We prioritize an intimate, clean, uninterrupted listening experience for you and your partner.</p>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <!-- ==================== DEVICE COMPATIBILITY MATRIX ==================== -->
+        <section class="editorial-section" id="section-compatibility">
+          <div class="editorial-header">
+            <span class="editorial-tag">SYSTEM REQUIREMENTS</span>
+            <h3 class="editorial-title">Platform &amp; Browser Compatibility</h3>
+            <p class="editorial-lead">Verified compatibility across all modern operating systems and web standards.</p>
+          </div>
+
+          <div class="compatibility-table-wrap">
+            <table class="compat-table">
+              <thead>
+                <tr>
+                  <th>Platform / OS</th>
+                  <th>Recommended Browser</th>
+                  <th>Audio Range Requests</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Apple iOS (iPhone / iPad)</strong></td>
+                  <td>Safari 15+, Chrome for iOS</td>
+                  <td>Supported &bull; Byte-Range HTTP</td>
+                  <td><span class="status-pill green">Verified 100%</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Google Android</strong></td>
+                  <td>Chrome 90+, Samsung Internet, Firefox</td>
+                  <td>Supported &bull; Full HTML5 Media</td>
+                  <td><span class="status-pill green">Verified 100%</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Microsoft Windows</strong></td>
+                  <td>Chrome, Edge, Firefox, Brave</td>
+                  <td>Supported &bull; Full SSE Stream</td>
+                  <td><span class="status-pill green">Verified 100%</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Apple macOS</strong></td>
+                  <td>Safari, Chrome, Firefox, Arc</td>
+                  <td>Supported &bull; Full High-Res Audio</td>
+                  <td><span class="status-pill green">Verified 100%</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ==================== TRANSPARENCY & ETHICS ==================== -->
+        <section class="editorial-section transparency-card" id="section-transparency">
+          <div class="transparency-inner">
+            <div class="transparency-icon">✨</div>
+            <div class="transparency-text">
+              <h4>Our Commitment to Quality &amp; Transparency</h4>
+              <p>
+                Couple's Hear was crafted with love to bring distant hearts closer through sound. We hold ourselves to the highest standards of web craftsmanship, intellectual property compliance, and privacy safety. All preset songs are licensed for public performance under Creative Commons, and we strictly follow GDPR, CCPA, and modern privacy standards.
+              </p>
+              <div class="transparency-links">
+                <button type="button" class="link-btn" data-open-modal="privacy-policy">Read Privacy Policy &rarr;</button>
+                <button type="button" class="link-btn" data-open-modal="terms-of-service">Review Terms of Service &rarr;</button>
+                <button type="button" class="link-btn" data-open-modal="contact-us">Contact Editorial Team &rarr;</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- ==================== 3. CREATE ROOM VIEW ==================== -->
+      <section id="create-room-screen" class="view-panel hidden">
+        <div class="center-card glass-panel">
+          <button id="btn-back-from-create" class="back-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span>Back to Home</span>
+          </button>
+
+          <span class="sub-eyebrow">READY TO LISTEN</span>
+          <h2 class="panel-heading">YOUR ROOM</h2>
+
+          <div class="code-display-box">
+            <span class="code-label">ROOM CODE</span>
+            <div id="created-room-code" class="room-code-number">LOVE7K</div>
+            <span class="code-hint">Share this code with your partner.</span>
+          </div>
+
+          <div class="share-url-preview">
+            <span class="url-label">Room Link:</span>
+            <input type="text" id="share-link-input" readonly class="share-link-input" value="https://..." />
+          </div>
+
+          <div class="button-stack">
+            <div class="button-row">
+              <button id="btn-copy-code" class="btn-action">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>COPY CODE</span>
+              </button>
+
+              <button id="btn-share-room" class="btn-action">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="18" cy="5" r="3"></circle>
+                  <circle cx="6" cy="12" r="3"></circle>
+                  <circle cx="18" cy="19" r="3"></circle>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                <span>SHARE ROOM</span>
+              </button>
+            </div>
+
+            <button id="btn-enter-created-room" class="btn-primary w-full">
+              <span>ENTER ROOM</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 4. JOIN ROOM VIEW ==================== -->
+      <section id="join-room-screen" class="view-panel hidden">
+        <div class="center-card glass-panel">
+          <button id="btn-back-from-join" class="back-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span>Back to Home</span>
+          </button>
+
+          <span class="sub-eyebrow">CONNECT WITH PARTNER</span>
+          <h2 class="panel-heading" id="join-panel-title">JOIN A ROOM</h2>
+          <p class="panel-desc">Enter your partner's 6-character room code to start listening together.</p>
+
+          <form id="form-join-room" class="join-form" onsubmit="return false;">
+            <div class="input-group">
+              <label for="input-room-code">Room Code</label>
+              <input
+                type="text"
+                id="input-room-code"
+                class="room-code-input"
+                placeholder="LOVE7K"
+                maxlength="6"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                required
+              />
+            </div>
+
+            <div class="input-group">
+              <label for="input-partner-name">Your Display Name</label>
+              <input
+                type="text"
+                id="input-partner-name"
+                class="text-input"
+                placeholder="Partner"
+                maxlength="20"
+                value="Partner"
+              />
+            </div>
+
+            <div id="join-error-box" class="error-banner hidden"></div>
+
+            <button type="submit" id="btn-submit-join" class="btn-primary w-full">
+              <span>JOIN ROOM</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ==================== 5. ROOM INTERFACE ==================== -->
+      <section id="room-screen" class="view-panel hidden">
+        <!-- Autoplay Restriction Prompt Modal/Banner -->
+        <div id="autoplay-prompt" class="autoplay-overlay hidden">
+          <div class="autoplay-card glass-panel">
+            <div class="autoplay-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+            </div>
+            <h3>READY TO LISTEN?</h3>
+            <p>Tap below to enable synchronized audio on this device.</p>
+            <button id="btn-start-listening" class="btn-primary pulse-btn">
+              <span>START LISTENING</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Room Header Bar -->
+        <div class="room-top-bar glass-panel">
+          <div class="room-info-cluster">
+            <span class="room-badge-large">
+              <span class="room-prefix">ROOM:</span>
+              <span id="room-code-display" class="room-code-text">------</span>
+            </span>
+            <div class="status-indicator-badge">
+              <span class="status-dot green"></span>
+              <span id="room-members-count">1 MEMBER</span>
+            </div>
+            <!-- Header Active Song Display -->
+            <div class="header-selected-song-chip" id="header-selected-song-chip" title="Currently Selected Track">
+              <span class="chip-note-icon">🎵</span>
+              <span class="chip-label">PLAYING:</span>
+              <span id="header-song-title" class="chip-title">Sweet Serenade</span>
+            </div>
+          </div>
+
+          <div class="room-actions-cluster">
+            <button id="btn-room-copy-code" class="pill-btn" title="Copy Room Code">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Copy Code</span>
+            </button>
+
+            <button id="btn-room-share" class="pill-btn" title="Share Room">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="18" cy="5" r="3"></circle>
+                <circle cx="6" cy="12" r="3"></circle>
+                <circle cx="18" cy="19" r="3"></circle>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+              </svg>
+              <span>Share</span>
+            </button>
+
+            <button id="btn-room-leave" class="pill-btn danger" title="Leave Room">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              <span>Leave</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Room Two-Column Layout -->
+        <div class="room-layout">
+          <!-- LEFT COLUMN: MEMBERS SECTION -->
+          <div class="room-column column-members">
+            <div class="section-card glass-panel">
+              <div class="section-header">
+                <div class="header-with-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                  <h3 class="section-title">ROOM MEMBERS</h3>
+                </div>
+                <span id="role-pill-badge" class="role-pill host-role">HOST</span>
+              </div>
+
+              <div class="members-list" id="members-list">
+                <!-- Host Card -->
+                <div class="member-card host-card" id="member-card-host">
+                  <div class="member-avatar host-avatar">
+                    <span id="host-avatar-letter">H</span>
+                  </div>
+                  <div class="member-info">
+                    <div class="member-role-tag">HOST</div>
+                    <div class="member-name-row">
+                      <span id="host-name-display" class="member-name">Host</span>
+                      <span id="host-you-badge" class="you-badge">(You)</span>
+                    </div>
+                    <div class="member-status-row">
+                      <span class="status-dot green" id="host-status-dot"></span>
+                      <span id="host-status-text" class="status-text">Connected</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Partner Card -->
+                <div class="member-card partner-card" id="member-card-partner">
+                  <div class="member-avatar partner-avatar">
+                    <span id="partner-avatar-letter">P</span>
+                  </div>
+                  <div class="member-info">
+                    <div class="member-role-tag">PARTNER</div>
+                    <div class="member-name-row">
+                      <span id="partner-name-display" class="member-name">Waiting for partner...</span>
+                      <span id="partner-you-badge" class="you-badge hidden">(You)</span>
+                    </div>
+                    <div class="member-status-row">
+                      <span class="status-dot gray" id="partner-status-dot"></span>
+                      <span id="partner-status-text" class="status-text">Waiting</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Waiting Partner Invite Callout -->
+              <div id="waiting-partner-callout" class="waiting-callout">
+                <div class="callout-icon">💌</div>
+                <div class="callout-text">
+                  <strong>Invite your partner</strong>
+                  <p>Send them the code <code id="callout-code">LOVE7K</code> or link to listen together.</p>
+                </div>
+                <button id="btn-callout-copy" class="btn-small">Copy Link</button>
+              </div>
+
+              <!-- Host Controls Notice Banner -->
+              <div class="role-notice-banner" id="role-notice-banner">
+                <div class="notice-icon">👑</div>
+                <div class="notice-text">
+                  <strong id="role-notice-title">HOST CONTROLS PLAYBACK</strong>
+                  <p id="role-notice-desc">You control play, pause, seek, and song selection.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT COLUMN: MUSIC PLAYER -->
+          <div class="room-column column-player">
+            <div class="player-card glass-panel" id="player-card">
+              <!-- Selected Song Status Header Banner -->
+              <div class="selected-song-banner" id="selected-song-banner">
+                <div class="selected-song-badge-left">
+                  <span class="selected-badge-icon">🎵</span>
+                  <span class="selected-badge-tag">CURRENTLY SELECTED SONG</span>
+                </div>
+                <div class="selected-song-badge-right">
+                  <span class="selected-badge-live" id="selected-song-live-status">● IN SYNC</span>
+                </div>
+              </div>
+
+              <!-- Album Artwork with Vinyl Record Effect -->
+              <div class="artwork-container">
+                <div class="vinyl-disc" id="vinyl-disc">
+                  <div class="vinyl-grooves"></div>
+                  <div class="vinyl-center"></div>
+                </div>
+                <div class="artwork-frame" id="artwork-frame">
+                  <img
+                    id="album-artwork-img"
+                    src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80"
+                    alt="Album Artwork"
+                    referrerpolicy="no-referrer"
+                  />
+                  <div class="artwork-overlay"></div>
+                </div>
+              </div>
+
+              <!-- Song Details -->
+              <div class="song-meta">
+                <div class="song-selection-indicator" id="song-selection-indicator">
+                  <span class="music-bars-mini">
+                    <span class="bar-m"></span>
+                    <span class="bar-m"></span>
+                    <span class="bar-m"></span>
+                  </span>
+                  <span class="selected-track-label">NOW PLAYING ON BOTH DEVICES</span>
+                </div>
+                <h3 id="song-title" class="song-title">Sweet Serenade</h3>
+                <p id="song-artist" class="song-artist">Couple’s Hear Romantic Acoustics</p>
+                <div id="playback-status-pill" class="playback-status-pill paused">
+                  <span class="status-indicator-dot"></span>
+                  <span id="playback-status-text">Paused • Tap Play to start</span>
+                </div>
+              </div>
+
+              <!-- Playback Progress Slider -->
+              <div class="progress-section">
+                <div class="slider-wrapper">
+                  <input
+                    type="range"
+                    id="seek-slider"
+                    class="seek-slider"
+                    min="0"
+                    max="100"
+                    value="0"
+                    step="0.1"
+                    aria-label="Seek track"
+                  />
+                  <div class="slider-fill" id="slider-fill"></div>
+                </div>
+                <div class="time-row">
+                  <span id="current-time-text">0:00</span>
+                  <span id="duration-time-text">0:00</span>
+                </div>
+              </div>
+
+              <!-- Primary Player Controls -->
+              <div class="controls-row">
+                <!-- Previous Button -->
+                <button id="btn-prev-track" class="control-btn" title="Restart / Previous Track" aria-label="Previous Track">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                    <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"></line>
+                  </svg>
+                </button>
+
+                <!-- Play/Pause Button -->
+                <button id="btn-play-pause" class="play-pause-btn" title="Play / Pause" aria-label="Play or Pause">
+                  <svg id="icon-play" class="icon-play" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                  <svg id="icon-pause" class="icon-pause hidden" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16"></rect>
+                    <rect x="14" y="4" width="4" height="16"></rect>
+                  </svg>
+                </button>
+
+                <!-- Next Track Button -->
+                <button id="btn-next-track" class="control-btn" title="Next Song" aria-label="Next Track">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                    <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"></line>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Volume Control & Sound Check -->
+              <div class="volume-container">
+                <div class="volume-row">
+                  <button id="btn-volume-mute" class="volume-icon-btn" aria-label="Mute or unmute">
+                    <svg id="icon-volume-high" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    <svg id="icon-volume-muted" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <line x1="23" y1="9" x2="17" y2="15"></line>
+                      <line x1="17" y1="9" x2="23" y2="15"></line>
+                    </svg>
+                  </button>
+                  <input
+                    type="range"
+                    id="volume-slider"
+                    class="volume-slider"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="0.8"
+                    aria-label="Volume slider"
+                  />
+                  <span id="volume-percent" class="volume-label">80%</span>
+                </div>
+                <button id="btn-test-sound" class="btn-sound-check" type="button" title="Play test audio chime">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  </svg>
+                  <span>Test Audio Sound</span>
+                </button>
+              </div>
+
+              <!-- PLAYLIST SECTION (Real-time synchronized, 1 by 1 playback) -->
+              <div class="playlist-section" id="playlist-section">
+                <div class="playlist-header">
+                  <div class="header-with-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="8" y1="6" x2="21" y2="6"></line>
+                      <line x1="8" y1="12" x2="21" y2="12"></line>
+                      <line x1="8" y1="18" x2="21" y2="18"></line>
+                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    </svg>
+                    <h4>ROOM PLAYLIST</h4>
+                    <span id="playlist-count-badge" class="playlist-badge">3 Songs</span>
+                  </div>
+                  <div class="playlist-header-actions">
+                    <span class="playback-mode-badge" title="Songs play one after another automatically">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="17 1 21 5 17 9"></polyline>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                        <polyline points="7 23 3 19 7 15"></polyline>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                      </svg>
+                      <span>Plays 1 by 1</span>
+                    </span>
+                    <button id="btn-clear-playlist" class="btn-clear-playlist hidden" type="button" title="Clear all tracks in playlist">Clear</button>
+                  </div>
+                </div>
+
+                <!-- High Visibility Selected Song Bar in Playlist -->
+                <div class="playlist-selected-bar" id="playlist-selected-bar">
+                  <div class="psb-left">
+                    <span class="psb-pulse-icon">🎶</span>
+                    <span class="psb-tag">NOW PLAYING:</span>
+                    <strong class="psb-title" id="psb-song-title">Sweet Serenade</strong>
+                  </div>
+                  <span class="psb-live-badge">SYNCHRONIZED</span>
+                </div>
+
+                <p class="playlist-subtext" id="playlist-role-hint">
+                  Continuous synchronized queue &bull; Advances to the next track automatically when each song finishes.
+                </p>
+
+                <!-- Track list container -->
+                <div class="playlist-tracks" id="playlist-tracks">
+                  <!-- Rendered dynamically by script.js -->
+                </div>
+              </div>
+
+              <!-- ADD MUSIC / PLAYLIST SECTION (Host Only) -->
+              <div class="music-source-section" id="music-source-section">
+                <div class="music-source-header">
+                  <div class="header-with-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M9 18V5l12-2v13"></path>
+                      <circle cx="6" cy="18" r="3"></circle>
+                      <circle cx="18" cy="16" r="3"></circle>
+                    </svg>
+                    <h4>ADD SONGS TO PLAYLIST</h4>
+                  </div>
+                  <span class="host-tag">Host Feature</span>
+                </div>
+
+                <!-- Multiple Audio Files Upload Dropzone & Button -->
+                <div class="upload-controls">
+                  <input
+                    type="file"
+                    id="audio-file-input"
+                    accept=".mp3,.wav,.ogg,.m4a,audio/*"
+                    multiple
+                    class="hidden"
+                  />
+                  <div id="upload-dropzone" class="upload-dropzone">
+                    <button id="btn-trigger-upload" class="btn-upload" type="button">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                      <span>UPLOAD SONGS (SELECT MULTIPLE FILES)</span>
+                    </button>
+                    <p class="upload-hint">Upload multiple audio files (.mp3, .wav, .ogg, .m4a) &bull; Drag &amp; drop supported</p>
+                  </div>
+                </div>
+
+                <!-- Upload Progress Bar & Status -->
+                <div id="upload-progress-container" class="upload-progress-wrap hidden">
+                  <div class="progress-labels">
+                    <span id="upload-filename">Processing songs...</span>
+                    <span id="upload-percentage">0%</span>
+                  </div>
+                  <div class="progress-track">
+                    <div id="upload-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
+                  </div>
+                </div>
+
+                <!-- Curated Couple Songs Quick Select -->
+                <div class="playlist-presets">
+                  <span class="preset-label">Or append romantic melodies to the playlist:</span>
+                  <div class="preset-buttons" id="preset-buttons">
+                    <button class="preset-btn" data-index="0" type="button">
+                      <span class="preset-add-icon">+</span>
+                      <span class="preset-track-name">Sweet Serenade (Acoustic)</span>
+                      <span class="preset-selected-badge hidden">✓ SELECTED</span>
+                    </button>
+                    <button class="preset-btn" data-index="1" type="button">
+                      <span class="preset-add-icon">+</span>
+                      <span class="preset-track-name">Moonlight Piano Romance</span>
+                      <span class="preset-selected-badge hidden">✓ SELECTED</span>
+                    </button>
+                    <button class="preset-btn" data-index="2" type="button">
+                      <span class="preset-add-icon">+</span>
+                      <span class="preset-track-name">Lo-Fi Warm Love</span>
+                      <span class="preset-selected-badge hidden">✓ SELECTED</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ==================== MULTI-COLUMN SITE FOOTER ==================== -->
+    <footer class="site-footer" id="site-footer">
+      <div class="footer-container">
+        <div class="footer-grid">
+          <!-- Col 1: Brand & Mission -->
+          <div class="footer-col brand-col">
+            <div class="footer-brand">
+              <div class="logo-mark small">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18V5l12-2v13"></path>
+                  <circle cx="6" cy="18" r="3"></circle>
+                  <circle cx="18" cy="16" r="3"></circle>
+                </svg>
+              </div>
+              <span class="footer-brand-name">COUPLE’S HEAR</span>
+            </div>
+            <p class="footer-tagline">
+              Real-time synchronized music listening for couples separated by distance. Built with love, precision audio technology, and zero barriers.
+            </p>
+            <div class="ad-free-badge">
+              <span class="badge-dot"></span>
+              <span>100% Ad-Free &bull; Privacy Focused</span>
+            </div>
+          </div>
+
+          <!-- Col 2: Navigation -->
+          <div class="footer-col">
+            <h5 class="footer-col-title">NAVIGATION</h5>
+            <ul class="footer-links">
+              <li><button type="button" class="footer-link" data-target-action="home">Home</button></li>
+              <li><button type="button" class="footer-link" data-target-action="how-it-works">How It Works</button></li>
+              <li><button type="button" class="footer-link" data-target-action="features">Core Audio Features</button></li>
+              <li><button type="button" class="footer-link" data-target-action="music-guide">Music &amp; Love Guide</button></li>
+              <li><button type="button" class="footer-link" data-target-action="faq">Frequently Asked Questions</button></li>
+            </ul>
+          </div>
+
+          <!-- Col 3: Editorial & Guides -->
+          <div class="footer-col">
+            <h5 class="footer-col-title">EDITORIAL &amp; GUIDES</h5>
+            <ul class="footer-links">
+              <li><button type="button" class="footer-link" data-target-action="music-guide">The Science of Shared Sound</button></li>
+              <li><button type="button" class="footer-link" data-target-action="music-guide">5 Virtual Date Ideas</button></li>
+              <li><button type="button" class="footer-link" data-target-action="compatibility">Device Compatibility</button></li>
+              <li><button type="button" class="footer-link" data-target-action="transparency">Transparency &amp; Ethics</button></li>
+              <li><a href="./sitemap.xml" target="_blank" class="footer-link">XML Sitemap</a></li>
+            </ul>
+          </div>
+
+          <!-- Col 4: Legal & Policies -->
+          <div class="footer-col">
+            <h5 class="footer-col-title">LEGAL &amp; POLICIES</h5>
+            <ul class="footer-links">
+              <li><button type="button" class="footer-link" data-open-modal="privacy-policy">Privacy Policy (GDPR/CCPA)</button></li>
+              <li><button type="button" class="footer-link" data-open-modal="terms-of-service">Terms of Service</button></li>
+              <li><button type="button" class="footer-link" data-open-modal="cookie-policy">Cookie Policy &amp; Choices</button></li>
+              <li><button type="button" class="footer-link" data-open-modal="about-us">About Our Mission</button></li>
+              <li><button type="button" class="footer-link" data-open-modal="contact-us">Contact Editorial Team</button></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="footer-bottom-bar">
+          <p class="copyright-text">
+            &copy; 2026 Couple's Hear. All rights reserved. Designed for lovers, friends, and shared musical journeys.
+          </p>
+          <div class="footer-bottom-links">
+            <button type="button" class="bottom-link" data-open-modal="privacy-policy">Privacy</button>
+            <span class="sep">&bull;</span>
+            <button type="button" class="bottom-link" data-open-modal="terms-of-service">Terms</button>
+            <span class="sep">&bull;</span>
+            <button type="button" class="bottom-link" data-open-modal="cookie-policy">Cookies</button>
+            <span class="sep">&bull;</span>
+            <button type="button" class="bottom-link" data-open-modal="contact-us">Support</button>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- LEAVE ROOM CONFIRMATION MODAL -->
+  <div id="modal-leave-confirm" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel">
+      <div class="modal-icon-wrap warning">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+      <h3 class="modal-title">Leave this room?</h3>
+      <p class="modal-message">You will be disconnected from this listening session with your partner.</p>
+      <div class="modal-actions">
+        <button id="btn-leave-cancel" class="btn-ghost">CANCEL</button>
+        <button id="btn-leave-confirm" class="btn-danger">LEAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOST LEFT NOTIFICATION MODAL -->
+  <div id="modal-host-left" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel">
+      <div class="modal-icon-wrap info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+      </div>
+      <h3 class="modal-title">THE HOST HAS LEFT</h3>
+      <p class="modal-message">The listening session has ended because the host left the room.</p>
+      <div class="modal-actions">
+        <button id="btn-return-home-host-left" class="btn-primary w-full">RETURN HOME</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FIREBASE CONFIGURATION & INSTRUCTIONS MODAL -->
+  <div id="modal-firebase-config" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel config-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Firebase Real-Time Configuration</h3>
+        <button id="btn-close-config" class="close-btn" aria-label="Close modal">&times;</button>
+      </div>
+      <p class="modal-message">
+        To synchronize music across two separate phones or computers, provide your Firebase Project credentials.
+        Without keys, the app runs in <strong>Local Dual-Tab Sync Mode</strong> for instant testing.
+      </p>
+
+      <form id="form-firebase-config" onsubmit="return false;">
+        <div class="config-fields">
+          <div class="input-group">
+            <label>API Key</label>
+            <input type="text" id="cfg-apiKey" placeholder="AIzaSy..." class="text-input small" />
+          </div>
+          <div class="input-group">
+            <label>Database URL (Realtime DB)</label>
+            <input type="text" id="cfg-databaseURL" placeholder="https://your-project.firebaseio.com" class="text-input small" />
+          </div>
+          <div class="input-group">
+            <label>Project ID</label>
+            <input type="text" id="cfg-projectId" placeholder="your-project-id" class="text-input small" />
+          </div>
+          <div class="input-group">
+            <label>Storage Bucket</label>
+            <input type="text" id="cfg-storageBucket" placeholder="your-project.appspot.com" class="text-input small" />
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="btn-clear-config" class="btn-ghost">Reset to Demo</button>
+          <button type="submit" id="btn-save-config" class="btn-primary">Save & Connect</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== POLICY MODALS ==================== -->
+
+  <!-- 1. PRIVACY POLICY MODAL (GDPR & CCPA Compliant) -->
+  <div id="modal-privacy-policy" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="privacy-modal-title">
+    <div class="modal-box glass-panel modal-lg">
+      <div class="modal-header-bar">
+        <h3 class="modal-title" id="privacy-modal-title">Privacy Policy</h3>
+        <button type="button" class="modal-close-btn" data-close-modal="privacy-policy" aria-label="Close Privacy Policy">&times;</button>
+      </div>
+      <div class="modal-body-scrollable">
+        <p class="policy-effective-date">Effective Date: January 1, 2026 &bull; Last Updated: March 2026</p>
+
+        <section class="policy-section">
+          <h4>1. Introduction &amp; Commitment to Privacy</h4>
+          <p>
+            At Couple’s Hear ("we," "us," or "our"), accessible from coupleshear.com, the privacy of our visitors is of paramount importance. This Privacy Policy document outlines the types of information that are collected and recorded by Couple’s Hear and how we prioritize your privacy and data security during synchronized audio sessions.
+          </p>
+        </section>
+
+        <section class="policy-section">
+          <h4>2. Information We Collect</h4>
+          <p>
+            Couple’s Hear is designed on privacy-preserving principles. We do NOT require user account creation, email sign-ups, or social logins to use our core synchronized listening room.
+          </p>
+          <ul>
+            <li><strong>Session &amp; Log Data:</strong> Like most web applications, our servers automatically log non-personally identifiable requests including IP addresses, browser types, Internet Service Providers (ISPs), date/time stamps, referring/exit pages, and click counts to analyze trends and administer the site.</li>
+            <li><strong>User Display Names:</strong> The temporary name you enter in the room is stored solely in memory for the duration of the session so your partner knows who changed a track.</li>
+            <li><strong>Uploaded Audio:</strong> Audio uploaded during a session is stored ephemerally to facilitate streaming range-requests between the two devices. We do not inspect, catalog, index, or sell uploaded content.</li>
+          </ul>
+        </section>
+
+        <section class="policy-section">
+          <h4>3. No Third-Party Advertising</h4>
+          <p>
+            Couple’s Hear does not display third-party advertisements or partner with third-party advertising networks. We do not use commercial advertising cookies, tracking beacons, or cross-site tracking scripts.
+          </p>
+        </section>
+
+        <section class="policy-section">
+          <h4>4. Cookies &amp; Local Storage</h4>
+          <p>
+            Couple’s Hear uses standard browser cookies and local storage strictly to preserve your preferences (such as your room display name, audio volume levels, and theme settings). We do not use advertising or marketing cookies.
+          </p>
+        </section>
+
+        <section class="policy-section">
+          <h4>5. General Data Protection Regulation (GDPR) Data Protection Rights</h4>
+          <p>We want to ensure you are fully aware of all of your data protection rights under the EU GDPR:</p>
+          <ul>
+            <li><strong>The right to access:</strong> You have the right to request copies of your personal data.</li>
+            <li><strong>The right to rectification:</strong> You have the right to request correction of inaccurate data.</li>
+            <li><strong>The right to erasure:</strong> You have the right to request that we erase your personal data under certain conditions.</li>
+            <li><strong>The right to restrict processing:</strong> You have the right to request that we restrict processing of your data.</li>
+          </ul>
+        </section>
+
+        <section class="policy-section">
+          <h4>6. California Consumer Privacy Act (CCPA) Rights ("Do Not Sell My Info")</h4>
+          <p>
+            Under the CCPA, California consumers have the right to request disclosure of categories and specific pieces of personal data collected, request deletion, and opt out of the sale or sharing of personal data. Couple’s Hear does NOT sell consumer personal information.
+          </p>
+        </section>
+
+        <section class="policy-section">
+          <h4>7. Children's Online Privacy Protection (COPPA)</h4>
+          <p>
+            Couple’s Hear does not knowingly collect any Personal Identifiable Information from children under the age of 13. If you believe your child provided this information on our website, we strongly encourage you to contact us immediately, and we will promptly remove such records.
+          </p>
+        </section>
+
+        <section class="policy-section">
+          <h4>8. Contact Us Regarding Privacy</h4>
+          <p>
+            If you have additional questions or require more information about our Privacy Policy, do not hesitate to reach us via our Contact Form or by emailing <strong>privacy@coupleshear.com</strong>.
+          </p>
+        </section>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" data-close-modal="privacy-policy">I Understand</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. TERMS OF SERVICE MODAL -->
+  <div id="modal-terms-of-service" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="terms-modal-title">
+    <div class="modal-box glass-panel modal-lg">
+      <div class="modal-header-bar">
+        <h3 class="modal-title" id="terms-modal-title">Terms of Service</h3>
+        <button type="button" class="modal-close-btn" data-close-modal="terms-of-service" aria-label="Close Terms of Service">&times;</button>
+      </div>
+      <div class="modal-body-scrollable">
+        <p class="policy-effective-date">Effective Date: January 1, 2026</p>
+
+        <section class="policy-section">
+          <h4>1. Agreement to Terms</h4>
+          <p>
+            By accessing or using Couple’s Hear (the "Service"), you agree to be bound by these Terms of Service. If you disagree with any part of the terms, you may not access the Service.
+          </p>
+        </section>
+
+        <section class="policy-section">
+          <h4>2. Permitted Use &amp; Community Guidelines</h4>
+          <p>
+            Couple’s Hear is intended for private, non-commercial entertainment and romantic connection between two individuals. You agree not to:
+          </p>
+          <ul>
+            <li>Use the service for unlawful purposes or to transmit unauthorized copyrighted works.</li>
+            <li>Interfere with, disrupt, or burden the servers or networks connected to the service.</li>
+            <li>Upload malicious scripts, viruses, or illegal material through our audio upload pipeline.</li>
+          </ul>
+        </section>
+
+        <section class="policy-section">
+          <h4>3. User Uploads &amp; Intellectual Property (DMCA)</h4>
+          <p>
+            Users are solely responsible for audio files they upload to their private session. You represent and warrant that you own or hold the necessary licenses, rights, and permissions to playback uploaded content for personal shared listening. We respect the intellectual property rights of creators and comply with the Digital Millennium Copyright Act (DMCA). If you believe your copyrighted work has been infringed, please notify our designated copyright agent at <strong>dmca@coupleshear.com</strong>.
+          </p>
+        </section>
+
+        <section class="policy-section">
+          <h4>4. Disclaimer of Warranties &amp; Limitation of Liability</h4>
+          <p>
+            The Service is provided on an "AS IS" and "AS AVAILABLE" basis without warranties of any kind. Couple’s Hear does not guarantee uninterrupted, latency-free, or error-free synchronization across fluctuating network conditions.
+          </p>
+        </section>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" data-close-modal="terms-of-service">Accept Terms</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ABOUT US MODAL -->
+  <div id="modal-about-us" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="about-modal-title">
+    <div class="modal-box glass-panel modal-lg">
+      <div class="modal-header-bar">
+        <h3 class="modal-title" id="about-modal-title">About Couple’s Hear</h3>
+        <button type="button" class="modal-close-btn" data-close-modal="about-us" aria-label="Close About Us">&times;</button>
+      </div>
+      <div class="modal-body-scrollable">
+        <div class="about-hero-block">
+          <span class="about-badge">OUR MISSION</span>
+          <h4>Connecting Distant Hearts Through Sound</h4>
+          <p>
+            Couple’s Hear was born out of a universal personal challenge: the ache of physical separation in long-distance relationships. While video calls and messaging apps let us see and text our partners, sharing a spontaneous musical moment—dancing together in the kitchen, studying to lo-fi beats, or falling asleep to soothing piano melodies—was impossible without annoying audio echo and disjointed timelines.
+          </p>
+        </div>
+
+        <section class="policy-section">
+          <h4>Our Core Philosophy</h4>
+          <p>
+            We believe that shared sound is an emotional bridge. When two souls listen to the exact same chord progression at the exact same millisecond, their heart rates and emotional rhythms harmonize. That's why we committed to three uncompromised standards:
+          </p>
+          <div class="values-list">
+            <div class="value-item">
+              <strong>1. Instant &amp; Frictionless:</strong> Zero accounts, zero passwords, and no intrusive app installs. Jump into a room in 3 seconds.
+            </div>
+            <div class="value-item">
+              <strong>2. Sub-Second Synchronization:</strong> Custom drift-correction algorithms that run dynamically on client browsers to guarantee tight audio unison.
+            </div>
+            <div class="value-item">
+              <strong>3. Free &amp; Ad-Free for Everyone:</strong> Crafted as a clean, uninterrupted audio sanctuary so every couple worldwide can listen together without financial barriers or commercial interruptions.
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" data-close-modal="about-us">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. CONTACT US MODAL (Interactive with live validation & backend API) -->
+  <div id="modal-contact-us" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title">
+    <div class="modal-box glass-panel">
+      <div class="modal-header-bar">
+        <h3 class="modal-title" id="contact-modal-title">Contact Editorial &amp; Support</h3>
+        <button type="button" class="modal-close-btn" data-close-modal="contact-us" aria-label="Close Contact Form">&times;</button>
+      </div>
+      <form id="contact-form" class="contact-form-inner">
+        <p class="form-instructions">
+          Have feedback, a feature request, or an inquiry? Send us a message and our team will get back to you within 24-48 hours.
+        </p>
+
+        <div class="input-group">
+          <label for="contact-name">Your Name</label>
+          <input type="text" id="contact-name" class="text-input" placeholder="e.g. Alex Taylor" required />
+        </div>
+
+        <div class="input-group">
+          <label for="contact-email">Email Address</label>
+          <input type="email" id="contact-email" class="text-input" placeholder="e.g. alex@example.com" required />
+        </div>
+
+        <div class="input-group">
+          <label for="contact-category">Subject Category</label>
+          <select id="contact-category" class="text-input">
+            <option value="General Feedback">General Feedback</option>
+            <option value="Bug Report / Audio Lag">Bug Report / Audio Sync</option>
+            <option value="Partnership / Feature Request">Partnership / Feature Request</option>
+            <option value="Privacy / GDPR Inquiry">Privacy / GDPR Inquiry</option>
+            <option value="Feature Suggestion">Feature Suggestion</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <label for="contact-message">Your Message</label>
+          <textarea id="contact-message" class="text-input textarea" rows="4" placeholder="How can we help you?" required></textarea>
+        </div>
+
+        <div id="contact-feedback-message" class="form-feedback-alert hidden"></div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" data-close-modal="contact-us">Cancel</button>
+          <button type="submit" id="btn-submit-contact" class="btn-primary">
+            <span>Send Message</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. COOKIE POLICY & PREFERENCES MODAL -->
+  <div id="modal-cookie-policy" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="cookie-modal-title">
+    <div class="modal-box glass-panel modal-lg">
+      <div class="modal-header-bar">
+        <h3 class="modal-title" id="cookie-modal-title">Cookie Policy &amp; Preferences</h3>
+        <button type="button" class="modal-close-btn" data-close-modal="cookie-policy" aria-label="Close Cookie Policy">&times;</button>
+      </div>
+      <div class="modal-body-scrollable">
+        <p class="policy-effective-date">Last Updated: March 2026</p>
+        <p>
+          We use cookies strictly to personalize your experience, preserve room settings, and analyze site performance. We do not use advertising cookies.
+        </p>
+
+        <div class="cookie-types-list">
+          <div class="cookie-toggle-card">
+            <div class="cookie-card-info">
+              <strong>Essential Cookies (Always Active)</strong>
+              <p>Required for basic session state, room code routing, and HTML5 audio player controls. Cannot be disabled.</p>
+            </div>
+            <span class="cookie-status-badge">Required</span>
+          </div>
+
+          <div class="cookie-toggle-card">
+            <div class="cookie-card-info">
+              <strong>Analytics &amp; Performance Cookies</strong>
+              <p>Helps us understand network latency trends and audio buffer performance to improve synchronization algorithms.</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-analytics-cookies" checked />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="btn-save-cookie-settings" class="btn-primary">Save Preferences</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. EU USER CONSENT COOKIE BANNER (Floating at Bottom) -->
+  <aside id="cookie-consent-banner" class="cookie-consent-banner hidden" aria-label="Cookie Consent Banner">
+    <div class="cookie-banner-inner">
+      <div class="cookie-banner-text">
+        <p>
+          <strong>We value your privacy:</strong> Couple's Hear uses cookies to preserve your room preferences and ensure smooth, synchronized audio. Read our <button type="button" class="banner-link-inline" data-open-modal="privacy-policy">Privacy Policy</button> and <button type="button" class="banner-link-inline" data-open-modal="cookie-policy">Cookie Policy</button>.
+        </p>
+      </div>
+      <div class="cookie-banner-buttons">
+        <button type="button" id="btn-cookie-preferences" class="btn-cookie-ghost">Preferences</button>
+        <button type="button" id="btn-cookie-accept" class="btn-cookie-primary">Accept All</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==================== PWA INSTALL MODALS & PROMPTS ==================== -->
+
+  <!-- 7. iOS SAFARI INSTALLATION GUIDE MODAL -->
+  <div id="modal-ios-install" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="ios-modal-title">
+    <div class="modal-box glass-panel pwa-ios-modal">
+      <div class="modal-header">
+        <div class="modal-header-icon pwa-icon-glow">
+          <img src="./pwa-192x192.png" alt="Couple's Hear App Icon" class="ios-modal-app-icon" />
+        </div>
+        <div class="modal-header-text">
+          <h3 id="ios-modal-title" class="modal-title">Install Couple’s Hear on iOS</h3>
+          <p class="modal-subtitle">Full-screen app experience on iPhone &amp; iPad</p>
+        </div>
+        <button type="button" class="btn-modal-close" data-close-modal="ios-install" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="modal-body-scrollable">
+        <p class="ios-lead-text">
+          Apple iOS Safari allows you to install <strong>Couple’s Hear</strong> directly to your home screen with zero app store downloads:
+        </p>
+
+        <div class="ios-steps-list">
+          <div class="ios-step-card">
+            <div class="ios-step-num">1</div>
+            <div class="ios-step-details">
+              <strong>Tap the Share button</strong>
+              <p>In Safari's bottom toolbar, tap the Share icon (<svg class="inline-ios-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>).</p>
+            </div>
+          </div>
+
+          <div class="ios-step-card">
+            <div class="ios-step-num">2</div>
+            <div class="ios-step-details">
+              <strong>Select "Add to Home Screen"</strong>
+              <p>Scroll down the share sheet options and tap <strong>Add to Home Screen</strong> (<svg class="inline-ios-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>).</p>
+            </div>
+          </div>
+
+          <div class="ios-step-card">
+            <div class="ios-step-num">3</div>
+            <div class="ios-step-details">
+              <strong>Confirm &amp; Launch</strong>
+              <p>Tap <strong>Add</strong> in the top-right corner. The Couple’s Hear app icon will appear instantly on your home screen!</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ios-perks-box">
+          <div class="ios-perk-item">✓ Standalone full-screen music playback</div>
+          <div class="ios-perk-item">✓ Fast one-tap launch from home screen</div>
+          <div class="ios-perk-item">✓ Keeps audio synchronized smoothly</div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" data-close-modal="ios-install">Got It!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7B. UNIVERSAL APP INSTALLATION GUIDE MODAL (Chrome, Edge, Android, Desktop) -->
+  <div id="modal-app-install" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="app-install-modal-title">
+    <div class="modal-box glass-panel pwa-universal-modal">
+      <div class="modal-header">
+        <div class="modal-header-icon pwa-icon-glow">
+          <img src="./pwa-192x192.png" alt="Couple's Hear App Icon" class="ios-modal-app-icon" />
+        </div>
+        <div class="modal-header-text">
+          <h3 id="app-install-modal-title" class="modal-title">Install Couple’s Hear App</h3>
+          <p class="modal-subtitle">Instant 1-tap launch, offline tracks &amp; real-time audio sync</p>
+        </div>
+        <button type="button" class="btn-modal-close" data-close-modal="app-install" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="modal-body-scrollable">
+        <p class="ios-lead-text">
+          Couple’s Hear is a Progressive Web App (PWA) that installs directly on your device without large app store downloads:
+        </p>
+
+        <div class="install-platform-grid">
+          <div class="install-method-card">
+            <div class="install-method-header">
+              <span class="platform-tag">DESKTOP (Chrome, Edge, Brave)</span>
+            </div>
+            <p><strong>Option A:</strong> Look at the right side of your browser’s address bar (URL bar) and click the <strong>Install</strong> icon (<svg class="inline-ios-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>).</p>
+            <p><strong>Option B:</strong> Click the browser menu (<strong>&vellip;</strong>) &rarr; <strong>Save and share</strong> &rarr; <strong>Install Couple’s Hear</strong>.</p>
+          </div>
+
+          <div class="install-method-card">
+            <div class="install-method-header">
+              <span class="platform-tag">ANDROID (Chrome, Samsung Internet)</span>
+            </div>
+            <p>Tap the menu button (<strong>&vellip;</strong>) in the top-right corner &rarr; tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
+          </div>
+
+          <div class="install-method-card">
+            <div class="install-method-header">
+              <span class="platform-tag">APPLE iOS (iPhone &amp; iPad)</span>
+            </div>
+            <p>In Safari, tap <strong>Share</strong> (<svg class="inline-ios-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>) &rarr; scroll and tap <strong>Add to Home Screen</strong>.</p>
+          </div>
+        </div>
+
+        <div class="ios-perks-box" style="margin-top: 14px;">
+          <div class="ios-perk-item">&check; No App Store download required</div>
+          <div class="ios-perk-item">&check; Fullscreen playback &amp; background audio support</div>
+          <div class="ios-perk-item">&check; Shared synchronized rooms saved to home screen</div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" data-close-modal="app-install">Got It!</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 9. OFFLINE CONNECTIVITY INDICATOR -->
+  <div id="pwa-offline-indicator" class="pwa-offline-indicator hidden" role="status" aria-live="polite">
+    <span class="offline-pulse-dot"></span>
+    <span id="pwa-offline-text">Offline Mode &bull; Cached audio &amp; app shell active</span>
+  </div>
+
+  <!-- Hidden HTML5 Audio Element for shared playback -->
+  <audio id="couple-audio-element" preload="auto"></audio>
+
+  <!-- Load Main JavaScript Engine -->
+  <script type="module" src="./script.js"></script>
+</body>
+</html>

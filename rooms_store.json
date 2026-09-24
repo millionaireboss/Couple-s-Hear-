@@ -1,0 +1,29 @@
+{
+  "ABC777": {
+    "roomCode": "ABC777",
+    "hostId": "host_123",
+    "hostName": "Alex",
+    "members": {
+      "host": {
+        "id": "host_123",
+        "name": "Alex",
+        "status": "Connected"
+      },
+      "partner": {
+        "id": "partner_456",
+        "name": "Luna",
+        "status": "Connected"
+      }
+    },
+    "playlist": [],
+    "playback": {
+      "isPlaying": true,
+      "position": 14.5,
+      "updatedAt": 1789999000
+    },
+    "createdAt": 1789996725391,
+    "lastActiveAt": 1789996725424,
+    "partnerId": "partner_456",
+    "partnerName": "Luna"
+  }
+}
