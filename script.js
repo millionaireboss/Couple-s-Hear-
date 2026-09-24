@@ -2733,10 +2733,11 @@ function initSitePoliciesAndNavEngine() {
   if (btnSaveCookieSettings) {
     btnSaveCookieSettings.addEventListener("click", () => {
       const analyticsCookies = document.getElementById("toggle-analytics-cookies")?.checked ?? true;
+      const advertisingCookies = document.getElementById("toggle-advertising-cookies")?.checked ?? true;
 
       const consentData = {
         essential: true,
-        advertising: false,
+        advertising: advertisingCookies,
         analytics: analyticsCookies,
         timestamp: Date.now()
       };
