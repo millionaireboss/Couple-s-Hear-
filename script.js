@@ -2767,7 +2767,7 @@ function initSitePoliciesAndNavEngine() {
 function initPWAAppEngine() {
   // 1. Service Worker Registration
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
+    const registerSW = () => {
       navigator.serviceWorker
         .register("./sw.js")
         .then((reg) => {
@@ -2787,7 +2787,13 @@ function initPWAAppEngine() {
         .catch((err) => {
           console.warn("[PWA Engine] Service worker registration note:", err);
         });
-    });
+    };
+
+    if (document.readyState === "complete") {
+      registerSW();
+    } else {
+      window.addEventListener("load", registerSW);
+    }
   }
 
   // 2. DOM Elements
