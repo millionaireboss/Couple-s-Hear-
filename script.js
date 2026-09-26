@@ -115,6 +115,8 @@ const ROMANTIC_COVERS = [
 // =========================================================================
 const STATE = {
   screen: "LANDING", // LANDING, HOME, CREATE_ROOM, JOIN_ROOM, ROOM
+  activeModal: null,
+  screenHistoryCount: 0,
   userId: getOrCreateUserId(),
   userName: localStorage.getItem("couples_hear_user_name") || "Host",
   currentRole: null, // "host" or "partner"
@@ -354,9 +356,167 @@ function showToast(message, type = "info", duration = 3800) {
 }
 
 // =========================================================================
-// SECTION 6: VIEW SWITCHING & NAVIGATION
+// SECTION 6: VIEW SWITCHING, MODALS & BROWSER HISTORY NAVIGATION ENGINE
 // =========================================================================
-function showScreen(screenName) {
+
+let isNavigatingFromPopState = false;
+let lastRootBackPressTime = 0;
+
+function getModalElement(nameOrEl) {
+  if (!nameOrEl) return null;
+  if (typeof nameOrEl !== "string") return nameOrEl;
+  if (nameOrEl.startsWith("modal-")) {
+    return document.getElementById(nameOrEl);
+  }
+  return document.getElementById(`modal-${nameOrEl}`) || document.getElementById(nameOrEl);
+}
+
+function openModal(nameOrEl) {
+  const modal = getModalElement(nameOrEl);
+  if (!modal) return;
+
+  // Hide any currently open modal first
+  document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((el) => {
+    if (el !== modal) el.classList.add("hidden");
+  });
+
+  modal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  STATE.activeModal = modal.id;
+
+  // Push history entry for modal so pressing Back closes the modal without leaving the app
+  const cleanId = modal.id.replace(/^modal-/, "");
+  window.history.pushState(
+    {
+      screen: STATE.screen,
+      modalId: modal.id,
+      source: "couples_hear",
+      timestamp: Date.now()
+    },
+    "",
+    `#${cleanId}`
+  );
+}
+
+function closeModal(nameOrEl) {
+  const modal = getModalElement(nameOrEl);
+  if (!modal) return;
+
+  // If top history state corresponds to this modal, go back in history.
+  // The popstate listener will hide it and restore document scroll cleanly.
+  if (window.history.state && window.history.state.modalId === modal.id) {
+    window.history.back();
+    return;
+  }
+
+  modal.classList.add("hidden");
+  const remaining = document.querySelectorAll(".modal-backdrop:not(.hidden)");
+  if (remaining.length === 0) {
+    document.body.style.overflow = "";
+    STATE.activeModal = null;
+  }
+}
+
+function getScreenHash(screenName, roomCode) {
+  switch (screenName) {
+    case "LANDING":
+      return "#landing";
+    case "HOME":
+      return "#home";
+    case "CREATE_ROOM":
+      return "#create";
+    case "JOIN_ROOM":
+      return "#join";
+    case "ROOM":
+      return (roomCode || STATE.currentRoomCode) ? `#room=${roomCode || STATE.currentRoomCode}` : "#room";
+    default:
+      return "#landing";
+  }
+}
+
+async function teardownRoomSession(notify = true) {
+  const code = STATE.currentRoomCode;
+  if (!code) return;
+
+  if (notify) {
+    try {
+      fetch(`/api/rooms/${code}/member`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: STATE.isHost ? "host" : "partner",
+          status: "Left",
+          senderId: STATE.userId
+        })
+      }).catch(() => {});
+    } catch (e) {}
+
+    if (isFirebaseConfigured() && STATE.database && firebaseSDK) {
+      try {
+        const roomPresenceRef = firebaseSDK.ref(
+          STATE.database,
+          `rooms/${code}/members/${STATE.isHost ? "host" : "partner"}`
+        );
+        await firebaseSDK.remove(roomPresenceRef);
+
+        if (STATE.isHost) {
+          const hostStatusRef = firebaseSDK.ref(STATE.database, `rooms/${code}/members/host/status`);
+          await firebaseSDK.set(hostStatusRef, "Disconnected");
+        } else {
+          const partnerRef = firebaseSDK.ref(STATE.database, `rooms/${code}/members/partner`);
+          await firebaseSDK.remove(partnerRef);
+          const partnerIdRef = firebaseSDK.ref(STATE.database, `rooms/${code}/partnerId`);
+          await firebaseSDK.remove(partnerIdRef);
+        }
+      } catch (e) {}
+    } else {
+      if (STATE.broadcastChannel) {
+        STATE.broadcastChannel.postMessage({
+          type: STATE.isHost ? "HOST_LEFT" : "PARTNER_LEFT",
+          roomCode: code,
+          senderId: STATE.userId
+        });
+      }
+      if (STATE.isHost) {
+        localStorage.removeItem(`couples_room_${code}`);
+      }
+    }
+  }
+
+  // Reset audio
+  DOM.audioElement.pause();
+  DOM.audioElement.src = "";
+  DOM.playerCard.classList.remove("player-playing");
+
+  if (STATE.eventSource) {
+    STATE.eventSource.close();
+    STATE.eventSource = null;
+  }
+  if (STATE.syncInterval) clearInterval(STATE.syncInterval);
+  if (STATE.driftCorrectionInterval) clearInterval(STATE.driftCorrectionInterval);
+
+  STATE.currentRoomCode = null;
+  STATE.currentRole = null;
+  STATE.isHost = false;
+  STATE.roomData = null;
+}
+
+function showScreen(screenName, options = {}) {
+  const { pushHistory = true, replaceHistory = false, roomCode = null } = options;
+  const previousScreen = STATE.screen;
+
+  // Clean up any open modal
+  document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((el) => {
+    el.classList.add("hidden");
+  });
+  document.body.style.overflow = "";
+  STATE.activeModal = null;
+
+  // If leaving ROOM and room is active, cleanly tear down room session if moving elsewhere
+  if (previousScreen === "ROOM" && screenName !== "ROOM" && STATE.currentRoomCode) {
+    teardownRoomSession(true);
+  }
+
   STATE.screen = screenName;
 
   // Hide all view panels
@@ -374,6 +534,7 @@ function showScreen(screenName) {
     DOM.landingScreen.classList.remove("fade-out");
     DOM.landingScreen.classList.add("active");
     DOM.appWrapper.classList.add("hidden");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   } else {
     DOM.landingScreen.classList.add("fade-out");
     DOM.appWrapper.classList.remove("hidden");
@@ -384,28 +545,137 @@ function showScreen(screenName) {
       DOM.headerRoomBadge.classList.add("hidden");
       DOM.connectionIndicator.classList.add("hidden");
       DOM.btnNavLeave.classList.add("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } else if (screenName === "CREATE_ROOM") {
       DOM.createRoomScreen.classList.remove("hidden");
       DOM.createRoomScreen.classList.add("active");
       DOM.headerRoomBadge.classList.add("hidden");
       DOM.connectionIndicator.classList.add("hidden");
       DOM.btnNavLeave.classList.add("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } else if (screenName === "JOIN_ROOM") {
       DOM.joinRoomScreen.classList.remove("hidden");
       DOM.joinRoomScreen.classList.add("active");
       DOM.headerRoomBadge.classList.add("hidden");
       DOM.connectionIndicator.classList.add("hidden");
       DOM.btnNavLeave.classList.add("hidden");
-      DOM.inputRoomCode.focus();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(() => {
+        if (DOM.inputRoomCode) DOM.inputRoomCode.focus();
+      }, 100);
     } else if (screenName === "ROOM") {
       DOM.roomScreen.classList.remove("hidden");
       DOM.roomScreen.classList.add("active");
       DOM.headerRoomBadge.classList.remove("hidden");
       DOM.connectionIndicator.classList.remove("hidden");
       DOM.btnNavLeave.classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  // Update navigation menu active state
+  document.querySelectorAll(".nav-menu-link").forEach((link) => {
+    const action = link.getAttribute("data-target-action");
+    if (action === "home" && screenName === "HOME") {
+      link.classList.add("active");
+    } else if (action && screenName !== "HOME") {
+      link.classList.remove("active");
+    }
+  });
+
+  // Browser history management
+  if (pushHistory && !isNavigatingFromPopState) {
+    const hash = getScreenHash(screenName, roomCode);
+    const stateObj = {
+      screen: screenName,
+      roomCode: roomCode || STATE.currentRoomCode || null,
+      source: "couples_hear",
+      timestamp: Date.now()
+    };
+
+    if (replaceHistory) {
+      window.history.replaceState(stateObj, "", hash);
+    } else {
+      window.history.pushState(stateObj, "", hash);
+      STATE.screenHistoryCount++;
     }
   }
 }
+
+function navigateBack(fallbackScreen = "HOME") {
+  // 1. If any modal is open, close it first
+  const openModalEl = document.querySelector(".modal-backdrop:not(.hidden)");
+  if (openModalEl) {
+    closeModal(openModalEl);
+    return;
+  }
+
+  // 2. If we have internal history depth in this session, use browser history back
+  if (window.history.length > 1 && STATE.screenHistoryCount > 0) {
+    window.history.back();
+  } else {
+    // 3. Fallback: navigate directly to the fallback screen
+    showScreen(fallbackScreen);
+  }
+}
+
+// Global Browser Back Button / History PopState Listener
+window.addEventListener("popstate", async (event) => {
+  // 1. If any modal is currently visible, the back button closes it and keeps user on current screen
+  const openModalEl = document.querySelector(".modal-backdrop:not(.hidden)");
+  if (openModalEl) {
+    openModalEl.classList.add("hidden");
+    const remaining = document.querySelectorAll(".modal-backdrop:not(.hidden)");
+    if (remaining.length === 0) {
+      document.body.style.overflow = "";
+      STATE.activeModal = null;
+    }
+    return;
+  }
+
+  // 2. Decrement internal history count
+  if (STATE.screenHistoryCount > 0) {
+    STATE.screenHistoryCount--;
+  }
+
+  // 3. Determine target screen from state or URL hash
+  let targetScreen = event.state && event.state.screen ? event.state.screen : null;
+
+  if (!targetScreen) {
+    const hash = (window.location.hash || "").toLowerCase();
+    if (hash === "#create") targetScreen = "CREATE_ROOM";
+    else if (hash === "#join") targetScreen = "JOIN_ROOM";
+    else if (hash.startsWith("#room")) targetScreen = "ROOM";
+    else if (hash === "#home") targetScreen = "HOME";
+    else if (hash === "#landing" || !hash) targetScreen = "LANDING";
+    else targetScreen = "LANDING";
+  }
+
+  // 4. Double-back prevention on root landing screen so users don't accidentally close the app
+  if (STATE.screen === "LANDING" && targetScreen === "LANDING") {
+    const now = Date.now();
+    if (now - lastRootBackPressTime < 2000) {
+      // Allow browser to exit on intentional quick double-back
+      return;
+    }
+    lastRootBackPressTime = now;
+    window.history.pushState({ screen: "LANDING", source: "couples_hear" }, "", "#landing");
+    STATE.screenHistoryCount++;
+    showToast("Press back again to exit", "info", 2000);
+    return;
+  }
+
+  // 5. If currently in ROOM and returning to previous screen, cleanly tear down room
+  if (STATE.screen === "ROOM" && targetScreen !== "ROOM") {
+    await teardownRoomSession(true);
+    showToast("Left room", "info");
+  }
+
+  // 6. Switch to target screen without pushing duplicate history entries
+  isNavigatingFromPopState = true;
+  showScreen(targetScreen, { pushHistory: false });
+  isNavigatingFromPopState = false;
+});
 
 // =========================================================================
 // SECTION 7: FIREBASE & LOCAL MULTI-TAB SYNCHRONIZATION ADAPTER
@@ -512,7 +782,7 @@ function handleBroadcastMessage(event) {
     onRoomDataChanged(payload);
   } else if (type === "HOST_LEFT") {
     if (!STATE.isHost) {
-      DOM.modalHostLeft.classList.remove("hidden");
+      openModal(DOM.modalHostLeft);
     }
   }
 }
@@ -953,7 +1223,7 @@ function listenToRoom(roomCode) {
       } else {
         // Room was deleted or closed
         if (!STATE.isHost) {
-          DOM.modalHostLeft.classList.remove("hidden");
+          openModal(DOM.modalHostLeft);
         }
       }
     });
@@ -999,7 +1269,7 @@ function onRoomDataChanged(newData) {
   // Detect if host left
   if (oldData && oldData.members?.host?.status !== "Disconnected" && newData.members?.host?.status === "Disconnected") {
     if (!STATE.isHost) {
-      DOM.modalHostLeft.classList.remove("hidden");
+      openModal(DOM.modalHostLeft);
     }
   }
 
@@ -1103,70 +1373,9 @@ async function updateMemberStatus(newStatus) {
 
 // Leave Room
 async function leaveRoom() {
-  if (STATE.currentRoomCode) {
-    const code = STATE.currentRoomCode;
-
-    // Notify backend server of leaving
-    try {
-      fetch(`/api/rooms/${code}/member`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: STATE.isHost ? "host" : "partner",
-          status: "Left",
-          senderId: STATE.userId
-        })
-      }).catch(() => {});
-    } catch (e) {}
-
-    if (isFirebaseConfigured() && STATE.database && firebaseSDK) {
-      try {
-        if (STATE.isHost) {
-          // Notify partner that host left
-          const hostStatusRef = firebaseSDK.ref(STATE.database, `rooms/${code}/members/host/status`);
-          await firebaseSDK.set(hostStatusRef, "Disconnected");
-        } else {
-          // Remove partner
-          const partnerRef = firebaseSDK.ref(STATE.database, `rooms/${code}/members/partner`);
-          await firebaseSDK.remove(partnerRef);
-          const partnerIdRef = firebaseSDK.ref(STATE.database, `rooms/${code}/partnerId`);
-          await firebaseSDK.remove(partnerIdRef);
-        }
-      } catch (e) {}
-    } else {
-      // Local clean up
-      if (STATE.broadcastChannel) {
-        STATE.broadcastChannel.postMessage({
-          type: STATE.isHost ? "HOST_LEFT" : "PARTNER_LEFT",
-          roomCode: code,
-          senderId: STATE.userId
-        });
-      }
-      if (STATE.isHost) {
-        localStorage.removeItem(`couples_room_${code}`);
-      }
-    }
-  }
-
-  // Reset audio
-  DOM.audioElement.pause();
-  DOM.audioElement.src = "";
-  DOM.playerCard.classList.remove("player-playing");
-
-  if (STATE.eventSource) {
-    STATE.eventSource.close();
-    STATE.eventSource = null;
-  }
-  if (STATE.syncInterval) clearInterval(STATE.syncInterval);
-  if (STATE.driftCorrectionInterval) clearInterval(STATE.driftCorrectionInterval);
-
-  STATE.currentRoomCode = null;
-  STATE.currentRole = null;
-  STATE.isHost = false;
-  STATE.roomData = null;
-
-  showScreen("HOME");
+  await teardownRoomSession(true);
   showToast("Left room", "info");
+  navigateBack("HOME");
 }
 
 // =========================================================================
@@ -2309,7 +2518,10 @@ DOM.btnCalloutCopy.addEventListener("click", () => {
 // =========================================================================
 
 // Landing Page Tap to Enter
-DOM.landingScreen.addEventListener("click", () => {
+DOM.landingScreen.addEventListener("click", (e) => {
+  if (e.target.closest("button, a, input, select, textarea, [data-open-modal], [data-target-action], .landing-top-bar")) {
+    return;
+  }
   showScreen("HOME");
 });
 
@@ -2332,13 +2544,17 @@ DOM.btnOpenJoinRoom.addEventListener("click", (e) => {
 });
 
 // Back Buttons
-DOM.btnBackFromCreate.addEventListener("click", () => showScreen("HOME"));
-DOM.btnBackFromJoin.addEventListener("click", () => showScreen("HOME"));
+DOM.btnBackFromCreate.addEventListener("click", () => navigateBack("HOME"));
+DOM.btnBackFromJoin.addEventListener("click", () => navigateBack("HOME"));
 DOM.navLogoBtn.addEventListener("click", () => {
   if (STATE.currentRoomCode) {
-    DOM.modalLeaveConfirm.classList.remove("hidden");
+    openModal(DOM.modalLeaveConfirm);
+  } else if (STATE.screen === "CREATE_ROOM" || STATE.screen === "JOIN_ROOM") {
+    navigateBack("HOME");
+  } else if (STATE.screen === "HOME") {
+    navigateBack("LANDING");
   } else {
-    showScreen("HOME");
+    navigateBack("HOME");
   }
 });
 
@@ -2375,24 +2591,24 @@ DOM.inputRoomCode.addEventListener("paste", () => {
 
 // Leave Room Flow
 DOM.btnNavLeave.addEventListener("click", () => {
-  DOM.modalLeaveConfirm.classList.remove("hidden");
+  openModal(DOM.modalLeaveConfirm);
 });
 
 DOM.btnRoomLeave.addEventListener("click", () => {
-  DOM.modalLeaveConfirm.classList.remove("hidden");
+  openModal(DOM.modalLeaveConfirm);
 });
 
 DOM.btnLeaveCancel.addEventListener("click", () => {
-  DOM.modalLeaveConfirm.classList.add("hidden");
+  closeModal(DOM.modalLeaveConfirm);
 });
 
 DOM.btnLeaveConfirm.addEventListener("click", () => {
-  DOM.modalLeaveConfirm.classList.add("hidden");
+  closeModal(DOM.modalLeaveConfirm);
   leaveRoom();
 });
 
 DOM.btnReturnHomeHostLeft.addEventListener("click", () => {
-  DOM.modalHostLeft.classList.add("hidden");
+  closeModal(DOM.modalHostLeft);
   leaveRoom();
 });
 
@@ -2402,7 +2618,7 @@ DOM.btnFirebaseSettings.addEventListener("click", () => {
   DOM.cfgDatabaseURL.value = firebaseConfig.databaseURL === "YOUR_DATABASE_URL" ? "" : firebaseConfig.databaseURL;
   DOM.cfgProjectId.value = firebaseConfig.projectId === "YOUR_PROJECT_ID" ? "" : firebaseConfig.projectId;
   DOM.cfgStorageBucket.value = firebaseConfig.storageBucket === "YOUR_PROJECT.appspot.com" ? "" : firebaseConfig.storageBucket;
-  DOM.modalFirebaseConfig.classList.remove("hidden");
+  openModal(DOM.modalFirebaseConfig);
 });
 
 DOM.btnBannerConfig.addEventListener("click", () => {
@@ -2410,7 +2626,7 @@ DOM.btnBannerConfig.addEventListener("click", () => {
 });
 
 DOM.btnCloseConfig.addEventListener("click", () => {
-  DOM.modalFirebaseConfig.classList.add("hidden");
+  closeModal(DOM.modalFirebaseConfig);
 });
 
 DOM.btnClearConfig.addEventListener("click", () => {
@@ -2427,7 +2643,7 @@ DOM.formFirebaseConfig.addEventListener("submit", () => {
   };
 
   localStorage.setItem(LOCAL_STORAGE_CFG_KEY, JSON.stringify(newConfig));
-  DOM.modalFirebaseConfig.classList.add("hidden");
+  closeModal(DOM.modalFirebaseConfig);
   showToast("Firebase settings saved! Reloading...", "success");
   setTimeout(() => location.reload(), 1000);
 });
@@ -2512,7 +2728,14 @@ function bootstrapApp() {
     const cleanedCode = directRoomParam.trim().toUpperCase();
     if (cleanedCode.length === 6) {
       DOM.inputRoomCode.value = cleanedCode;
-      showScreen("JOIN_ROOM");
+      window.history.replaceState({ screen: "HOME", source: "couples_hear" }, "", "#home");
+      window.history.pushState(
+        { screen: "JOIN_ROOM", roomCode: cleanedCode, source: "couples_hear" },
+        "",
+        window.location.search || `#room=${cleanedCode}`
+      );
+      STATE.screenHistoryCount = 1;
+      showScreen("JOIN_ROOM", { pushHistory: false });
       showToast(`Detected room ${cleanedCode}. Tap Join to enter!`, "info");
       initSitePoliciesAndNavEngine();
       initPWAAppEngine();
@@ -2520,11 +2743,38 @@ function bootstrapApp() {
     }
   }
 
-  // Default: Start at Landing screen
-  showScreen("LANDING");
+  // Handle direct hash navigation
+  const initialHash = (window.location.hash || "").toLowerCase();
+  if (initialHash === "#create") {
+    window.history.replaceState({ screen: "HOME", source: "couples_hear" }, "", "#home");
+    window.history.pushState({ screen: "CREATE_ROOM", source: "couples_hear" }, "", "#create");
+    STATE.screenHistoryCount = 1;
+    showScreen("CREATE_ROOM", { pushHistory: false });
+  } else if (initialHash === "#join") {
+    window.history.replaceState({ screen: "HOME", source: "couples_hear" }, "", "#home");
+    window.history.pushState({ screen: "JOIN_ROOM", source: "couples_hear" }, "", "#join");
+    STATE.screenHistoryCount = 1;
+    showScreen("JOIN_ROOM", { pushHistory: false });
+  } else if (initialHash === "#home") {
+    window.history.replaceState({ screen: "LANDING", source: "couples_hear" }, "", "#landing");
+    window.history.pushState({ screen: "HOME", source: "couples_hear" }, "", "#home");
+    STATE.screenHistoryCount = 1;
+    showScreen("HOME", { pushHistory: false });
+  } else {
+    // Default: Start at Landing screen
+    window.history.replaceState({ screen: "LANDING", source: "couples_hear" }, "", window.location.hash || "#landing");
+    STATE.screenHistoryCount = 0;
+    showScreen("LANDING", { pushHistory: false });
+  }
 
   // Initialize Navigation, Modals, Contact Form & Privacy Handlers
   initSitePoliciesAndNavEngine();
+
+  // If initial hash was a modal (e.g. #privacy-policy, #terms-of-service, etc.)
+  if (initialHash.startsWith("#modal-") || ["#privacy-policy", "#terms-of-service", "#about-us", "#contact-us", "#cookie-policy"].includes(initialHash)) {
+    const modalName = initialHash.replace("#modal-", "").replace("#", "");
+    openModal(modalName);
+  }
 
   // Initialize Progressive Web App (PWA) Engine & Install Handlers
   initPWAAppEngine();
@@ -2554,16 +2804,16 @@ function initSitePoliciesAndNavEngine() {
       }
 
       if (target === "home") {
-        if (STATE.currentScreen !== "PLAYER") {
-          showScreen("LANDING");
+        if (STATE.screen !== "ROOM") {
+          showScreen("HOME");
         }
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
 
-      // If user is currently in player room or join screen, switch view if needed
-      if (STATE.currentScreen !== "LANDING" && STATE.currentScreen !== "PLAYER") {
-        showScreen("LANDING");
+      // If user is not on HOME or ROOM, switch view to HOME first so sections are visible
+      if (STATE.screen !== "HOME" && STATE.screen !== "ROOM") {
+        showScreen("HOME");
       }
 
       const elementId = `section-${target}`;
@@ -2575,24 +2825,6 @@ function initSitePoliciesAndNavEngine() {
   });
 
   // 2. Policy & Legal Modal Handlers
-  const policyModals = ["privacy-policy", "terms-of-service", "about-us", "contact-us", "cookie-policy", "ios-install", "app-install"];
-
-  function openModal(name) {
-    const modal = document.getElementById(`modal-${name}`);
-    if (modal) {
-      modal.classList.remove("hidden");
-      document.body.style.overflow = "hidden"; // prevent background scroll
-    }
-  }
-
-  function closeModal(name) {
-    const modal = document.getElementById(`modal-${name}`);
-    if (modal) {
-      modal.classList.add("hidden");
-      document.body.style.overflow = "";
-    }
-  }
-
   // Open modal buttons
   document.querySelectorAll("[data-open-modal]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -2612,21 +2844,21 @@ function initSitePoliciesAndNavEngine() {
   });
 
   // Close on backdrop click
-  policyModals.forEach((name) => {
-    const modal = document.getElementById(`modal-${name}`);
-    if (modal) {
-      modal.addEventListener("click", (e) => {
-        if (e.target === modal) {
-          closeModal(name);
-        }
-      });
-    }
+  document.querySelectorAll(".modal-backdrop").forEach((modal) => {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        closeModal(modal);
+      }
+    });
   });
 
   // Close on Escape key
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      policyModals.forEach((name) => closeModal(name));
+      const openModalEl = document.querySelector(".modal-backdrop:not(.hidden)");
+      if (openModalEl) {
+        closeModal(openModalEl);
+      }
     }
   });
 
@@ -2911,19 +3143,14 @@ function initPWAAppEngine() {
 
     // B. iOS Safari Guided Flow
     if (isIOS) {
-      const iosModal = document.getElementById("modal-ios-install");
-      if (iosModal) {
-        iosModal.classList.remove("hidden");
-        document.body.style.overflow = "hidden";
-      }
+      openModal("modal-ios-install");
       return;
     }
 
     // C. Universal Browser Instructions Modal (Chrome/Edge desktop, Safari Mac, Android without active prompt, Firefox)
     const appModal = document.getElementById("modal-app-install");
     if (appModal) {
-      appModal.classList.remove("hidden");
-      document.body.style.overflow = "hidden";
+      openModal("modal-app-install");
     } else {
       showToast(
         "To install Couple's Hear on your device, tap your browser's menu (⋮ or Share) and select 'Install app' or 'Add to Home screen'.",
