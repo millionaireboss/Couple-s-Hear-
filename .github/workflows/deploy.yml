@@ -40,8 +40,11 @@ jobs:
       - name: Build static site
         run: npm run build
 
-      - name: Ensure .nojekyll exists in output
-        run: touch ./dist/.nojekyll
+      - name: Ensure .nojekyll and ads.txt exist in output
+        run: |
+          touch ./dist/.nojekyll
+          if [ -f ads.txt ]; then cp ads.txt ./dist/ads.txt; fi
+          if [ -f public/ads.txt ]; then cp public/ads.txt ./dist/ads.txt; fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

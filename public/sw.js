@@ -54,10 +54,14 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // 1. Bypass real-time room streaming and write API requests
+  // 1. Bypass real-time room streaming, ads.txt, AdSense scripts, and write API requests
   if (
     url.pathname.includes("/events") ||
     event.request.method !== "GET" ||
+    url.pathname.endsWith("/ads.txt") ||
+    url.hostname.includes("googlesyndication.com") ||
+    url.hostname.includes("google.com") ||
+    url.hostname.includes("doubleclick.net") ||
     url.pathname.includes("/api/rooms/") ||
     url.pathname.includes("/api/upload")
   ) {

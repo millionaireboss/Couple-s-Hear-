@@ -76,6 +76,30 @@ app.get("/manifest.json", (req, res) => {
   }
 });
 
+app.get("/ads.txt", (req, res) => {
+  const adsPath = path.join(publicDir, "ads.txt");
+  const rootAdsPath = path.join(process.cwd(), "ads.txt");
+  const targetPath = fs.existsSync(adsPath) ? adsPath : rootAdsPath;
+  if (fs.existsSync(targetPath)) {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.sendFile(targetPath);
+  } else {
+    res.status(404).send("Not found");
+  }
+});
+
+app.get("/robots.txt", (req, res) => {
+  const robotsPath = path.join(publicDir, "robots.txt");
+  if (fs.existsSync(robotsPath)) {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.sendFile(robotsPath);
+  } else {
+    res.status(404).send("Not found");
+  }
+});
+
 app.use(express.static(publicDir));
 
 app.use(express.json({ limit: "25mb" }));
