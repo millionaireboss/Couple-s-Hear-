@@ -501,6 +501,18 @@ async function teardownRoomSession(notify = true) {
   STATE.roomData = null;
 }
 
+function safeScrollToTop() {
+  try {
+    if (typeof window.scrollTo === "function") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  } catch (e) {
+    try {
+      window.scrollTo(0, 0);
+    } catch (err) {}
+  }
+}
+
 function showScreen(screenName, options = {}) {
   const { pushHistory = true, replaceHistory = false, roomCode = null } = options;
   const previousScreen = STATE.screen;
@@ -534,7 +546,7 @@ function showScreen(screenName, options = {}) {
     DOM.landingScreen.classList.remove("fade-out");
     DOM.landingScreen.classList.add("active");
     DOM.appWrapper.classList.add("hidden");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    safeScrollToTop();
   } else {
     DOM.landingScreen.classList.add("fade-out");
     DOM.appWrapper.classList.remove("hidden");
@@ -545,21 +557,21 @@ function showScreen(screenName, options = {}) {
       DOM.headerRoomBadge.classList.add("hidden");
       DOM.connectionIndicator.classList.add("hidden");
       DOM.btnNavLeave.classList.add("hidden");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      safeScrollToTop();
     } else if (screenName === "CREATE_ROOM") {
       DOM.createRoomScreen.classList.remove("hidden");
       DOM.createRoomScreen.classList.add("active");
       DOM.headerRoomBadge.classList.add("hidden");
       DOM.connectionIndicator.classList.add("hidden");
       DOM.btnNavLeave.classList.add("hidden");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      safeScrollToTop();
     } else if (screenName === "JOIN_ROOM") {
       DOM.joinRoomScreen.classList.remove("hidden");
       DOM.joinRoomScreen.classList.add("active");
       DOM.headerRoomBadge.classList.add("hidden");
       DOM.connectionIndicator.classList.add("hidden");
       DOM.btnNavLeave.classList.add("hidden");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      safeScrollToTop();
       setTimeout(() => {
         if (DOM.inputRoomCode) DOM.inputRoomCode.focus();
       }, 100);
@@ -569,7 +581,7 @@ function showScreen(screenName, options = {}) {
       DOM.headerRoomBadge.classList.remove("hidden");
       DOM.connectionIndicator.classList.remove("hidden");
       DOM.btnNavLeave.classList.remove("hidden");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      safeScrollToTop();
     }
   }
 
@@ -2653,8 +2665,9 @@ DOM.formFirebaseConfig.addEventListener("submit", () => {
 // =========================================================================
 function initParticles() {
   const canvas = document.getElementById("particles-canvas");
-  if (!canvas) return;
+  if (!canvas || typeof canvas.getContext !== "function") return;
   const ctx = canvas.getContext("2d");
+  if (!ctx) return;
 
   let width = (canvas.width = window.innerWidth);
   let height = (canvas.height = window.innerHeight);
@@ -2807,7 +2820,7 @@ function initSitePoliciesAndNavEngine() {
         if (STATE.screen !== "ROOM") {
           showScreen("HOME");
         }
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        safeScrollToTop();
         return;
       }
 
@@ -3036,7 +3049,6 @@ function initPWAAppEngine() {
   const btnDismissTopBar = document.getElementById("btn-dismiss-top-bar");
   const btnLandingInstall = document.getElementById("btn-landing-install");
   const btnPwaInstall = document.getElementById("btn-pwa-install");
-  const btnIosInstall = document.getElementById("btn-ios-install");
   const offlineIndicator = document.getElementById("pwa-offline-indicator");
   const offlineText = document.getElementById("pwa-offline-text");
 
@@ -3075,7 +3087,6 @@ function initPWAAppEngine() {
     if (topInstallBar) topInstallBar.style.display = "none";
     if (btnPwaInstall) btnPwaInstall.classList.add("hidden");
     if (btnLandingInstall) btnLandingInstall.classList.add("hidden");
-    if (btnIosInstall) btnIosInstall.classList.add("hidden");
     return;
   }
 
@@ -3114,7 +3125,6 @@ function initPWAAppEngine() {
     }
     if (btnPwaInstall) btnPwaInstall.classList.add("hidden");
     if (btnLandingInstall) btnLandingInstall.classList.add("hidden");
-    if (btnIosInstall) btnIosInstall.classList.add("hidden");
   }
 
   // Handler for triggering installation prompt or guided modal
@@ -3182,10 +3192,6 @@ function initPWAAppEngine() {
 
   if (btnPwaInstall) {
     btnPwaInstall.addEventListener("click", triggerAppInstall);
-  }
-
-  if (btnIosInstall) {
-    btnIosInstall.addEventListener("click", triggerAppInstall);
   }
 
   if (btnDismissTopBar) {

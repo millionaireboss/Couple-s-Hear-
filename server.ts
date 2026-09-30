@@ -48,7 +48,7 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Health check endpoint for Cloud Run and container liveness probes
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: Date.now() });
+  res.json({ status: "ok", activeRooms: rooms.size, timestamp: Date.now() });
 });
 
 // Direct audio and uploads static serving with byte range support for HTML5 <audio>
@@ -76,18 +76,22 @@ app.get("/manifest.json", (req, res) => {
   }
 });
 
-app.get("/ads.txt", (req, res) => {
+const handleAdsTxt: express.RequestHandler = (req, res) => {
   const adsPath = path.join(publicDir, "ads.txt");
   const rootAdsPath = path.join(process.cwd(), "ads.txt");
   const targetPath = fs.existsSync(adsPath) ? adsPath : rootAdsPath;
   if (fs.existsSync(targetPath)) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.sendFile(targetPath);
   } else {
     res.status(404).send("Not found");
   }
-});
+};
+
+app.get("/ads.txt", handleAdsTxt);
+app.get("/.well-known/ads.txt", handleAdsTxt);
 
 app.get("/robots.txt", (req, res) => {
   const robotsPath = path.join(publicDir, "robots.txt");
@@ -168,21 +172,7 @@ function broadcastToRoom(roomCode: string, payload: any, excludeRes?: express.Re
 
 // ---------------- API ROUTES ----------------
 
-// Health check
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", activeRooms: rooms.size });
-});
-
 // SEO Routes
-app.get("/robots.txt", (req, res) => {
-  const robotsPath = path.join(publicDir, "robots.txt");
-  if (fs.existsSync(robotsPath)) {
-    res.type("text/plain").sendFile(robotsPath);
-  } else {
-    res.type("text/plain").send("User-agent: *\nAllow: /\nDisallow: /api/\n");
-  }
-});
-
 app.get("/sitemap.xml", (req, res) => {
   const sitemapPath = path.join(publicDir, "sitemap.xml");
   if (fs.existsSync(sitemapPath)) {
