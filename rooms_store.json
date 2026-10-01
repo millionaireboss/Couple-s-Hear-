@@ -25,5 +25,56 @@
     "lastActiveAt": 1789996725424,
     "partnerId": "partner_456",
     "partnerName": "Luna"
+  },
+  "TEST99": {
+    "roomCode": "TEST99",
+    "hostId": "user_host_1",
+    "hostName": "HostUser",
+    "song": {
+      "title": "Test Song",
+      "audioUrl": "/audio/sweet_serenade.mp3"
+    },
+    "playback": {
+      "isPlaying": true,
+      "position": 10,
+      "updatedAt": 1790869575598
+    },
+    "createdAt": 1790869575632,
+    "lastActiveAt": 1790869575642,
+    "partnerId": "user_partner_2",
+    "partnerName": "PartnerUser",
+    "members": {
+      "partner": {
+        "id": "user_partner_2",
+        "name": "PartnerUser",
+        "status": "Connected"
+      }
+    }
+  },
+  "SYNC77": {
+    "roomCode": "SYNC77",
+    "hostId": "host_session_abc",
+    "hostName": "HostAlex",
+    "song": {
+      "title": "Sweet Serenade",
+      "audioUrl": "/audio/sweet_serenade.mp3",
+      "duration": 147
+    },
+    "playback": {
+      "isPlaying": false,
+      "position": 45,
+      "updatedAt": 1790869856138
+    },
+    "createdAt": 1790869855914,
+    "lastActiveAt": 1790869856141,
+    "partnerId": "partner_session_xyz",
+    "partnerName": "PartnerSam",
+    "members": {
+      "partner": {
+        "id": "partner_session_xyz",
+        "name": "PartnerSam",
+        "status": "Connected"
+      }
+    }
   }
 }

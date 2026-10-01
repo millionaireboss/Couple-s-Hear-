@@ -904,29 +904,34 @@ async function joinRoom(codeToJoin) {
   isJoiningInProgress = true;
 
   try {
-    let raw = (codeToJoin || DOM.inputRoomCode.value || "").trim().toUpperCase();
+    let raw = (codeToJoin || (DOM.inputRoomCode ? DOM.inputRoomCode.value : "") || "").trim().toUpperCase();
     if (raw.includes("ROOM=")) {
       const match = raw.match(/ROOM=([A-Z0-9]{6})/i);
       if (match) raw = match[1];
     }
     const code = raw.replace(/[^A-Z0-9]/g, "").slice(0, 6);
-    const partnerName = DOM.inputPartnerName.value.trim() || "Partner";
+    if (DOM.inputRoomCode) {
+      DOM.inputRoomCode.value = code;
+    }
+
+    let partnerName = DOM.inputPartnerName ? DOM.inputPartnerName.value.trim() : "";
+    if (!partnerName) {
+      partnerName = localStorage.getItem("couples_hear_partner_name") || localStorage.getItem("couples_hear_user_name") || "Partner";
+    }
 
     if (!code || code.length !== 6) {
       showJoinError("Please enter a valid 6-character room code.");
       return;
     }
 
-    // Direct user interaction pre-unlocks audio context
-    STATE.autoplayUnlocked = true;
-    if (DOM.autoplayPrompt) DOM.autoplayPrompt.classList.add("hidden");
-
     STATE.userName = partnerName;
-    localStorage.setItem("couples_hear_user_name", partnerName);
+    localStorage.setItem("couples_hear_partner_name", partnerName);
 
     hideJoinError();
-    DOM.btnSubmitJoin.disabled = true;
-    DOM.btnSubmitJoin.textContent = "Connecting...";
+    if (DOM.btnSubmitJoin) {
+      DOM.btnSubmitJoin.disabled = true;
+      DOM.btnSubmitJoin.textContent = "Connecting...";
+    }
 
     let roomData = null;
     let isHostRejoining = false;
@@ -950,6 +955,9 @@ async function joinRoom(codeToJoin) {
             isHostRejoining = true;
           }
         }
+      } else {
+        const errData = await res.json().catch(() => null);
+        console.warn("Backend join response not ok:", res.status, errData);
       }
     } catch (e) {
       console.warn("Backend join request error:", e);
@@ -980,11 +988,11 @@ async function joinRoom(codeToJoin) {
 
     // Verification Rules
     if (!roomData) {
-      showJoinError("Room not found.\nPlease check the 6-character room code.");
+      showJoinError(`Room "${code}" not found.\nPlease verify the 6-character room code.`);
       return;
     }
 
-    if (isHostRejoining || roomData.hostId === STATE.userId) {
+    if (isHostRejoining || (roomData.hostId && roomData.hostId === STATE.userId)) {
       STATE.currentRoomCode = code;
       STATE.currentRole = "host";
       STATE.isHost = true;
@@ -1034,22 +1042,32 @@ async function joinRoom(codeToJoin) {
     }
 
     enterActiveRoom(roomData);
-    showToast("Connected to room " + code + "!", "success");
+    showToast(`Connected to room ${code}!`, "success");
   } finally {
-    DOM.btnSubmitJoin.disabled = false;
-    DOM.btnSubmitJoin.textContent = "JOIN ROOM";
+    if (DOM.btnSubmitJoin) {
+      DOM.btnSubmitJoin.disabled = false;
+      DOM.btnSubmitJoin.textContent = "JOIN ROOM";
+    }
     isJoiningInProgress = false;
   }
 }
 
 function showJoinError(msg) {
-  DOM.joinErrorBox.textContent = msg;
-  DOM.joinErrorBox.classList.remove("hidden");
+  if (DOM.joinErrorBox) {
+    DOM.joinErrorBox.textContent = msg;
+    DOM.joinErrorBox.classList.remove("hidden");
+  }
+  if (STATE.screen !== "JOIN_ROOM" && STATE.screen !== "ROOM") {
+    showScreen("JOIN_ROOM");
+  }
+  showToast(msg, "error");
 }
 
 function hideJoinError() {
-  DOM.joinErrorBox.textContent = "";
-  DOM.joinErrorBox.classList.add("hidden");
+  if (DOM.joinErrorBox) {
+    DOM.joinErrorBox.textContent = "";
+    DOM.joinErrorBox.classList.add("hidden");
+  }
 }
 
 // Enter and start synchronizing with the active room
@@ -1646,7 +1664,7 @@ DOM.audioElement.addEventListener("loadedmetadata", () => {
 });
 
 DOM.audioElement.addEventListener("canplay", () => {
-  if (!STATE.isHost && STATE.roomData?.playback?.isPlaying && DOM.audioElement.paused && STATE.autoplayUnlocked) {
+  if (!STATE.isHost && STATE.roomData?.playback) {
     syncPartnerPlayback(STATE.roomData.playback);
   }
 });
@@ -2129,9 +2147,9 @@ DOM.btnVolumeMute.addEventListener("click", () => {
 });
 
 // Autoplay Unlock Modal
-DOM.btnStartListening.addEventListener("click", () => {
+function handleAutoplayUnlock() {
   STATE.autoplayUnlocked = true;
-  DOM.autoplayPrompt.classList.add("hidden");
+  if (DOM.autoplayPrompt) DOM.autoplayPrompt.classList.add("hidden");
 
   if (STATE.roomData?.playback) {
     syncPartnerPlayback(STATE.roomData.playback);
@@ -2139,7 +2157,14 @@ DOM.btnStartListening.addEventListener("click", () => {
     DOM.audioElement.play().catch(() => {});
   }
   showToast("Synchronized audio active!", "success");
-});
+}
+
+if (DOM.btnStartListening) {
+  DOM.btnStartListening.addEventListener("click", handleAutoplayUnlock);
+}
+if (DOM.autoplayPrompt) {
+  DOM.autoplayPrompt.addEventListener("click", handleAutoplayUnlock);
+}
 
 // Test Audio Sound Synthesizer Check
 function playAudioChimeTest() {
@@ -2575,11 +2600,38 @@ DOM.btnEnterCreatedRoom.addEventListener("click", () => {
   enterActiveRoom(STATE.roomData);
 });
 
-// Join Room Form Submit
-DOM.formJoinRoom.addEventListener("submit", (e) => {
-  if (e) e.preventDefault();
-  joinRoom();
-});
+// Join Room Form Submit & Button Click
+if (DOM.formJoinRoom) {
+  DOM.formJoinRoom.addEventListener("submit", (e) => {
+    if (e) e.preventDefault();
+    joinRoom();
+  });
+}
+
+if (DOM.btnSubmitJoin) {
+  DOM.btnSubmitJoin.addEventListener("click", (e) => {
+    if (e) e.preventDefault();
+    joinRoom();
+  });
+}
+
+if (DOM.inputRoomCode) {
+  DOM.inputRoomCode.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      joinRoom();
+    }
+  });
+}
+
+if (DOM.inputPartnerName) {
+  DOM.inputPartnerName.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      joinRoom();
+    }
+  });
+}
 
 DOM.inputRoomCode.addEventListener("input", (e) => {
   let val = e.target.value.toUpperCase();
@@ -2733,27 +2785,37 @@ function bootstrapApp() {
     console.warn("Sync engine init note:", err);
   });
 
-  // Check URL parameters for direct room link (?room=LOVE7K)
-  const urlParams = new URLSearchParams(window.location.search);
-  const directRoomParam = urlParams.get("room") || (window.location.hash.startsWith("#room=") ? window.location.hash.replace("#room=", "") : null);
+  // Helper to extract a 6-character room code from search or hash
+  function extractRoomCodeFromUrl() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      let param = urlParams.get("room") || urlParams.get("r") || urlParams.get("code") || urlParams.get("join");
+      if (!param && window.location.hash) {
+        const hash = window.location.hash.trim();
+        if (hash.startsWith("#room=")) param = hash.replace("#room=", "");
+        else if (hash.startsWith("#join/")) param = hash.replace("#join/", "");
+        else if (hash.startsWith("#join=")) param = hash.replace("#join=", "");
+        else if (/^#[A-Z0-9]{6}$/i.test(hash)) param = hash.substring(1);
+      }
+      if (param) {
+        const match = param.toUpperCase().match(/([A-Z0-9]{6})/);
+        return match ? match[1] : null;
+      }
+    } catch (e) {}
+    return null;
+  }
 
-  if (directRoomParam && DOM.inputRoomCode) {
-    const cleanedCode = directRoomParam.trim().toUpperCase();
-    if (cleanedCode.length === 6) {
-      DOM.inputRoomCode.value = cleanedCode;
-      window.history.replaceState({ screen: "HOME", source: "couples_hear" }, "", "#home");
-      window.history.pushState(
-        { screen: "JOIN_ROOM", roomCode: cleanedCode, source: "couples_hear" },
-        "",
-        window.location.search || `#room=${cleanedCode}`
-      );
-      STATE.screenHistoryCount = 1;
-      showScreen("JOIN_ROOM", { pushHistory: false });
-      showToast(`Detected room ${cleanedCode}. Tap Join to enter!`, "info");
-      initSitePoliciesAndNavEngine();
-      initPWAAppEngine();
-      return;
+  // Check URL parameters for direct room link (?room=LOVE7K or #room=LOVE7K)
+  const directRoomCode = extractRoomCodeFromUrl();
+  if (directRoomCode) {
+    if (DOM.inputRoomCode) {
+      DOM.inputRoomCode.value = directRoomCode;
     }
+    initSitePoliciesAndNavEngine();
+    initPWAAppEngine();
+    showToast(`Joining room ${directRoomCode}...`, "info");
+    joinRoom(directRoomCode);
+    return;
   }
 
   // Handle direct hash navigation
@@ -2791,6 +2853,15 @@ function bootstrapApp() {
 
   // Initialize Progressive Web App (PWA) Engine & Install Handlers
   initPWAAppEngine();
+
+  // Runtime listener for room link clicks while app is open
+  window.addEventListener("hashchange", () => {
+    const code = extractRoomCodeFromUrl();
+    if (code && code !== STATE.currentRoomCode) {
+      showToast(`Joining room ${code}...`, "info");
+      joinRoom(code);
+    }
+  });
 }
 
 if (document.readyState === "loading") {

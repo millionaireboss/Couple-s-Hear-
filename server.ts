@@ -269,7 +269,7 @@ app.post("/api/rooms/:code/join", (req, res) => {
   }
 
   // If host is rejoining
-  if (room.hostId === partnerId || (room.hostName && room.hostName.toLowerCase() === (partnerName || "").toLowerCase())) {
+  if (room.hostId && room.hostId === partnerId) {
     if (room.members?.host) {
       room.members.host.status = "Connected";
     }
@@ -314,10 +314,12 @@ app.get("/api/rooms/:code/events", (req, res) => {
   const room = rooms.get(code);
 
   res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.flushHeaders?.();
+  res.write(": connected\n\n");
 
   const roomSubs = getOrCreateSubscribers(code);
   roomSubs.add(res);
@@ -333,13 +335,18 @@ app.get("/api/rooms/:code/events", (req, res) => {
       res.write(": heartbeat\n\n");
     } catch (e) {
       clearInterval(heartbeat);
+      roomSubs.delete(res);
     }
   }, 15000);
 
-  req.on("close", () => {
+  const cleanup = () => {
     clearInterval(heartbeat);
     roomSubs.delete(res);
-  });
+  };
+
+  req.on("close", cleanup);
+  res.on("close", cleanup);
+  res.on("finish", cleanup);
 });
 
 // Update Playback State (Playing/Paused/Position)
