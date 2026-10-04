@@ -76,5 +76,34 @@
         "status": "Connected"
       }
     }
+  },
+  "SYNC88": {
+    "roomCode": "SYNC88",
+    "hostId": "h1",
+    "hostName": "HostAlex",
+    "members": {
+      "host": {
+        "id": "h1",
+        "name": "HostAlex",
+        "status": "Connected"
+      },
+      "partner": {
+        "id": "p1",
+        "name": "PartnerSam",
+        "status": "Connected"
+      }
+    },
+    "playlist": [],
+    "song": {
+      "title": "Test"
+    },
+    "playback": {
+      "isPlaying": false,
+      "position": 0
+    },
+    "createdAt": 1791112616524,
+    "lastActiveAt": 1791112616536,
+    "partnerId": "p1",
+    "partnerName": "PartnerSam"
   }
 }

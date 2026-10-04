@@ -1,3 +1,5 @@
+import { Peer } from "peerjs";
+
 /**
  * COUPLE’S HEAR - Core Application Engine
  * Real-time Synchronized Music Listening Application for Couples
@@ -778,23 +780,34 @@ async function initSyncEngine() {
   STATE.broadcastChannel = new BroadcastChannel("couples_hear_sync_channel");
   STATE.broadcastChannel.onmessage = handleBroadcastMessage;
 
-  // Check server health and announce real-time sync connectivity
-  try {
-    const healthRes = await fetch("/api/health");
-    if (healthRes.ok) {
-      STATE.serverAvailable = true;
-      STATE.isStaticHosting = false;
-      if (DOM.backendBannerText) {
-        DOM.backendBannerText.textContent = "● Live Sync Server Connected • Cross-device room sync active";
+  // Running on static hosting (e.g. GitHub Pages) without Node.js backend
+  const isGithubOrStatic =
+    window.location.hostname.includes("github.io") ||
+    window.location.hostname.includes("pages.dev") ||
+    window.location.protocol === "file:";
+
+  if (!isGithubOrStatic) {
+    try {
+      const healthRes = await fetch("/api/health");
+      const ct = healthRes.headers.get("content-type") || "";
+      if (healthRes.ok && ct.includes("application/json")) {
+        const data = await healthRes.json().catch(() => null);
+        if (data && data.status === "ok") {
+          STATE.serverAvailable = true;
+          STATE.isStaticHosting = false;
+          if (DOM.backendBannerText) {
+            DOM.backendBannerText.textContent = "● Live Sync Server Connected • Cross-device room sync active";
+          }
+          if (DOM.connectionStatusText) {
+            DOM.connectionStatusText.textContent = "LIVE SYNC";
+          }
+          console.log("Couple's Hear real-time room sync server connected.");
+          return;
+        }
       }
-      if (DOM.connectionStatusText) {
-        DOM.connectionStatusText.textContent = "LIVE SYNC";
-      }
-      console.log("Couple's Hear real-time room sync server connected.");
-      return;
+    } catch (e) {
+      console.warn("Server health check note (static hosting mode):", e);
     }
-  } catch (e) {
-    console.warn("Server health check note (static hosting mode):", e);
   }
 
   // Running on static hosting (e.g. GitHub Pages) without Node.js backend
@@ -810,6 +823,272 @@ async function initSyncEngine() {
 }
 
 // =========================================================================
+// WEBRTC PEER-TO-PEER (P2P) ENGINE FOR GITHUB PAGES & CROSS-DEVICE DIRECT SYNC
+// =========================================================================
+let peerInstance = null;
+let activePeerConnections = [];
+
+const PEER_STUN_CONFIG = {
+  debug: 1,
+  config: {
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+      { urls: "stun:stun.cloudflare.com:3478" }
+    ]
+  }
+};
+
+function getPeerConstructor() {
+  if (typeof Peer !== "undefined") return Peer;
+  if (typeof window !== "undefined" && window.Peer) return window.Peer;
+  return null;
+}
+
+function destroyPeer() {
+  activePeerConnections.forEach((conn) => {
+    try { conn.close(); } catch (e) {}
+  });
+  activePeerConnections = [];
+  if (peerInstance) {
+    try { peerInstance.destroy(); } catch (e) {}
+    peerInstance = null;
+  }
+}
+
+function initPeerHost(roomCode) {
+  const PeerClass = getPeerConstructor();
+  if (!PeerClass) {
+    console.warn("[WebRTC] PeerJS not loaded yet, using Cloud Relay fallback.");
+    return;
+  }
+
+  const code = (roomCode || "").trim().toUpperCase();
+  if (!code) return;
+
+  try {
+    destroyPeer();
+    const peerId = `coupleshear-p2p-${code}`;
+    const peer = new PeerClass(peerId, PEER_STUN_CONFIG);
+    peerInstance = peer;
+
+    peer.on("open", (id) => {
+      console.log(`[WebRTC Host] Ready on PeerJS: ${id}`);
+    });
+
+    peer.on("connection", (conn) => {
+      console.log(`[WebRTC Host] Incoming partner connection from: ${conn.peer}`);
+      activePeerConnections.push(conn);
+
+      const sendCurrentState = () => {
+        if (!STATE.roomData) return;
+        try {
+          conn.send({
+            type: "ROOM_SYNC",
+            roomCode: code,
+            room: STATE.roomData,
+            playback: {
+              isPlaying: !DOM.audioElement.paused,
+              position: DOM.audioElement.currentTime,
+              updatedAt: Date.now()
+            },
+            senderId: STATE.userId
+          });
+        } catch (e) {}
+      };
+
+      if (conn.open) {
+        sendCurrentState();
+      } else {
+        conn.on("open", sendCurrentState);
+      }
+
+      conn.on("data", (data) => {
+        handlePeerMessage(data);
+      });
+
+      conn.on("close", () => {
+        activePeerConnections = activePeerConnections.filter((c) => c !== conn);
+      });
+      conn.on("error", () => {
+        activePeerConnections = activePeerConnections.filter((c) => c !== conn);
+      });
+    });
+
+    peer.on("error", (err) => {
+      console.warn("[WebRTC Host] Peer note:", err);
+      if (err.type === "unavailable-id") {
+        // Re-attempt after old connection clears
+        setTimeout(() => {
+          if (STATE.isHost && STATE.currentRoomCode === code && !peerInstance) {
+            initPeerHost(code);
+          }
+        }, 2000);
+      }
+    });
+  } catch (err) {
+    console.warn("[WebRTC Host] Init note:", err);
+  }
+}
+
+function connectToPeerHost(roomCode) {
+  const PeerClass = getPeerConstructor();
+  if (!PeerClass) return Promise.resolve(null);
+
+  const code = (roomCode || "").trim().toUpperCase();
+  if (!code) return Promise.resolve(null);
+
+  return new Promise((resolve) => {
+    try {
+      const partnerPeer = new PeerClass(PEER_STUN_CONFIG);
+      peerInstance = partnerPeer;
+      let resolved = false;
+
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          resolve(null);
+        }
+      }, 5000);
+
+      partnerPeer.on("open", () => {
+        const hostPeerId = `coupleshear-p2p-${code}`;
+        console.log(`[WebRTC Partner] Connecting to host: ${hostPeerId}`);
+        const conn = partnerPeer.connect(hostPeerId, { reliable: true });
+
+        const onConnected = () => {
+          console.log(`[WebRTC Partner] Connected directly to host!`);
+          activePeerConnections.push(conn);
+          try {
+            conn.send({
+              type: "PARTNER_JOINED",
+              roomCode: code,
+              partnerId: STATE.userId,
+              partnerName: STATE.userName,
+              senderId: STATE.userId
+            });
+          } catch (e) {}
+        };
+
+        if (conn.open) {
+          onConnected();
+        } else {
+          conn.on("open", onConnected);
+        }
+
+        conn.on("data", (data) => {
+          if (data && (data.type === "ROOM_SYNC" || data.type === "ROOM_CREATED") && data.room) {
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timer);
+              resolve(data.room);
+            }
+          }
+          handlePeerMessage(data);
+        });
+
+        conn.on("error", () => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timer);
+            resolve(null);
+          }
+        });
+      });
+
+      partnerPeer.on("error", () => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          resolve(null);
+        }
+      });
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
+function broadcastToPeers(payload) {
+  for (const conn of activePeerConnections) {
+    if (conn.open) {
+      try {
+        conn.send(payload);
+      } catch (e) {}
+    }
+  }
+}
+
+function handlePeerMessage(data) {
+  if (!data || !data.type) return;
+  if (data.senderId && data.senderId === STATE.userId) return;
+
+  if (data.type === "ROOM_SYNC" && data.room) {
+    if (!STATE.isHost) {
+      onRoomDataChanged(data.room);
+      if (data.playback) {
+        syncPartnerPlayback(data.playback);
+      }
+    }
+  } else if (data.type === "PLAYBACK_UPDATE" && data.playback) {
+    if (!STATE.isHost) {
+      if (STATE.roomData) STATE.roomData.playback = data.playback;
+      syncPartnerPlayback(data.playback);
+    }
+  } else if (data.type === "SONG_UPDATE" && data.song) {
+    if (!STATE.isHost) {
+      loadSong(data.song);
+      if (data.playback) syncPartnerPlayback(data.playback);
+    }
+  } else if (data.type === "PLAYLIST_UPDATE") {
+    if (!STATE.isHost) {
+      if (data.playlist) {
+        STATE.roomData.playlist = data.playlist.map(normalizeSong);
+        renderPlaylistUI();
+      }
+      if (data.song) loadSong(data.song);
+      if (data.playback) syncPartnerPlayback(data.playback);
+    }
+  } else if (data.type === "PARTNER_JOINED") {
+    if (STATE.isHost) {
+      showToast(`${data.partnerName || "Partner"} joined the room!`, "success");
+      if (STATE.roomData) {
+        STATE.roomData.partnerId = data.partnerId;
+        STATE.roomData.partnerName = data.partnerName;
+        if (!STATE.roomData.members) STATE.roomData.members = {};
+        STATE.roomData.members.partner = {
+          id: data.partnerId,
+          name: data.partnerName || "Partner",
+          status: "Connected"
+        };
+        renderRoomMembers(STATE.roomData);
+        // Reply with current playback state
+        const syncMsg = {
+          type: "ROOM_SYNC",
+          roomCode: STATE.currentRoomCode,
+          room: STATE.roomData,
+          playback: {
+            isPlaying: !DOM.audioElement.paused,
+            position: DOM.audioElement.currentTime,
+            updatedAt: Date.now()
+          },
+          senderId: STATE.userId
+        };
+        broadcastToPeers(syncMsg);
+        publishToRelay(STATE.currentRoomCode, syncMsg);
+      }
+    }
+  } else if (data.type === "HOST_LEFT") {
+    if (!STATE.isHost) {
+      openModal(DOM.modalHostLeft);
+    }
+  }
+}
+
+// =========================================================================
 // SERVERLESS REAL-TIME CLOUD RELAY (Enables Cross-Device Sync on GitHub Pages)
 // =========================================================================
 function getRelayTopicUrl(roomCode) {
@@ -817,20 +1096,113 @@ function getRelayTopicUrl(roomCode) {
   return `https://ntfy.sh/coupleshear_v2_${code}`;
 }
 
+// Live Handshake Resolvers: Satisfies in-flight joinRoom() calls the instant host or relay responds
+const pendingRoomResolvers = new Map();
+
+function registerPendingRoomResolver(roomCode, resolveFn) {
+  const code = (roomCode || "").trim().toUpperCase();
+  if (!code || typeof resolveFn !== "function") return;
+  if (!pendingRoomResolvers.has(code)) {
+    pendingRoomResolvers.set(code, []);
+  }
+  pendingRoomResolvers.get(code).push(resolveFn);
+}
+
+function notifyPendingRoomResolvers(roomCode, roomData) {
+  const code = (roomCode || "").trim().toUpperCase();
+  if (!code || !roomData) return;
+  const resolvers = pendingRoomResolvers.get(code);
+  if (resolvers && resolvers.length > 0) {
+    console.log(`[Relay Live Resolver] Fulfilling ${resolvers.length} pending join request(s) for room ${code}`);
+    resolvers.forEach((fn) => {
+      try {
+        fn(roomData);
+      } catch (e) {}
+    });
+    pendingRoomResolvers.delete(code);
+  }
+}
+
+// Robust concatenated and streaming JSON parser (handles {...}{...} without newlines from ntfy)
+function parseConcatenatedJson(text) {
+  if (!text || typeof text !== "string") return [];
+  const clean = text.trim();
+  if (!clean) return [];
+
+  // Direct parse for single JSON object or array
+  if ((clean.startsWith("{") && clean.endsWith("}")) || (clean.startsWith("[") && clean.endsWith("]"))) {
+    try {
+      const parsed = JSON.parse(clean);
+      if (Array.isArray(parsed)) return parsed;
+      if (typeof parsed === "object" && parsed !== null) return [parsed];
+    } catch (e) {}
+  }
+
+  const items = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (ch === "{") {
+        if (depth === 0) start = i;
+        depth++;
+      } else if (ch === "}") {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          const slice = clean.slice(start, i + 1);
+          try {
+            items.push(JSON.parse(slice));
+          } catch (e) {}
+          start = -1;
+        }
+      }
+    }
+  }
+
+  return items;
+}
+
+function extractRelayPayload(record) {
+  if (!record) return null;
+  if (record.message && typeof record.message === "string") {
+    try {
+      const inner = JSON.parse(record.message);
+      if (inner && typeof inner === "object") return inner;
+    } catch (e) {}
+  }
+  if (record.type || record.room) return record;
+  return null;
+}
+
 async function publishToRelay(roomCode, payload) {
   if (!roomCode) return;
+  const code = (roomCode || "").trim().toUpperCase();
   try {
-    const url = getRelayTopicUrl(roomCode);
+    const url = getRelayTopicUrl(code);
     const bodyStr = JSON.stringify(payload);
+    // Explicit text/plain Content-Type ensures compatibility without triggering complex CORS drops
     await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Title": payload.type || "CouplesHearSync"
-      },
       body: bodyStr,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
       mode: "cors"
-    });
+    }).catch(() => {});
   } catch (err) {
     console.warn("[Serverless Relay] Publish note:", err);
   }
@@ -838,53 +1210,147 @@ async function publishToRelay(roomCode, payload) {
 
 async function queryRoomFromRelay(roomCode) {
   const code = (roomCode || "").trim().toUpperCase();
-  const url = `${getRelayTopicUrl(code)}/json?poll=1&since=all`;
+  const urlWithSinceAll = `${getRelayTopicUrl(code)}/json?poll=1&since=all`;
+  const urlDefault = `${getRelayTopicUrl(code)}/json?poll=1`;
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      const res = await fetch(url, { mode: "cors", cache: "no-store" });
-      if (res.ok) {
-        const text = await res.text();
-        const lines = text.trim().split("\n").filter(Boolean);
-        const msgs = lines
-          .map((l) => {
-            try {
-              const p = JSON.parse(l);
-              return p.message ? JSON.parse(p.message) : p;
-            } catch (e) {
-              return null;
-            }
-          })
-          .filter(Boolean);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    for (const url of [urlWithSinceAll, urlDefault]) {
+      try {
+        const res = await fetch(url, { mode: "cors", cache: "no-store" });
+        if (res.ok) {
+          const text = await res.text();
+          const records = parseConcatenatedJson(text);
+          const msgs = [];
+          for (const rec of records) {
+            const p = extractRelayPayload(rec);
+            if (p) msgs.push(p);
+          }
 
-        const match = msgs
-          .reverse()
-          .find(
-            (m) =>
-              (m.type === "ROOM_CREATED" || m.type === "ROOM_SYNC" || m.type === "ROOM_STATE") &&
-              m.room &&
-              m.roomCode === code
-          );
-        if (match && match.room) {
-          console.log(`[Serverless Relay] Room ${code} discovered on relay!`);
-          return match.room;
+          const match = msgs
+            .reverse()
+            .find(
+              (m) =>
+                (m.type === "ROOM_CREATED" || m.type === "ROOM_SYNC" || m.type === "ROOM_STATE") &&
+                m.room &&
+                (m.roomCode === code || (m.room && m.room.roomCode === code))
+            );
+          if (match && match.room) {
+            console.log(`[Serverless Relay] Room ${code} discovered on attempt ${attempt + 1}!`);
+            notifyPendingRoomResolvers(code, match.room);
+            return match.room;
+          }
         }
+      } catch (e) {
+        console.warn(`[Serverless Relay] Query attempt ${attempt + 1} note:`, e);
       }
-    } catch (e) {
-      console.warn("[Serverless Relay] Query attempt error:", e);
     }
-    // Also broadcast a join request on subsequent attempts to ask host to send state
-    if (attempt === 1) {
+
+    // Prompt host to reply with current state
+    if (attempt % 2 === 0) {
       publishToRelay(code, {
         type: "JOIN_REQUEST",
         roomCode: code,
         partnerId: STATE.userId,
+        partnerName: STATE.userName,
         senderId: STATE.userId
       });
     }
-    await new Promise((r) => setTimeout(r, 350));
+
+    await new Promise((r) => setTimeout(r, 550));
   }
   return null;
+}
+
+// Unified message router for both SSE and Polling streams
+function handleRelayIncomingMessage(targetCode, msg) {
+  if (!msg || !msg.type) return;
+  const code = (msg.roomCode || (msg.room && msg.room.roomCode) || targetCode || "").toUpperCase();
+  if (code !== targetCode) return;
+  if (msg.senderId && msg.senderId === STATE.userId) return; // Ignore own echoes
+
+  // Live Resolver: If any joinRoom() is waiting for this room definition
+  if ((msg.type === "ROOM_CREATED" || msg.type === "ROOM_SYNC" || msg.type === "ROOM_STATE") && msg.room) {
+    notifyPendingRoomResolvers(code, msg.room);
+  }
+
+  if (msg.type === "PARTNER_JOINED") {
+    if (STATE.isHost) {
+      showToast(`${msg.partnerName || "Partner"} joined the room!`, "success");
+      if (STATE.roomData) {
+        STATE.roomData.partnerId = msg.partnerId;
+        STATE.roomData.partnerName = msg.partnerName;
+        if (!STATE.roomData.members) STATE.roomData.members = {};
+        STATE.roomData.members.partner = {
+          id: msg.partnerId,
+          name: msg.partnerName || "Partner",
+          status: "Connected"
+        };
+        renderRoomMembers(STATE.roomData);
+
+        // Host sends back synchronized room state & audio playback position
+        const syncPayload = {
+          type: "ROOM_SYNC",
+          roomCode: code,
+          room: STATE.roomData,
+          playback: {
+            isPlaying: !DOM.audioElement.paused,
+            position: DOM.audioElement.currentTime,
+            updatedAt: Date.now()
+          },
+          senderId: STATE.userId
+        };
+        broadcastToPeers(syncPayload);
+        publishToRelay(code, syncPayload);
+      }
+    }
+  } else if (msg.type === "JOIN_REQUEST") {
+    if (STATE.isHost && STATE.roomData) {
+      console.log(`[Host] Received JOIN_REQUEST for room ${code}, replying with ROOM_SYNC`);
+      const syncPayload = {
+        type: "ROOM_SYNC",
+        roomCode: code,
+        room: STATE.roomData,
+        playback: {
+          isPlaying: !DOM.audioElement.paused,
+          position: DOM.audioElement.currentTime,
+          updatedAt: Date.now()
+        },
+        senderId: STATE.userId
+      };
+      broadcastToPeers(syncPayload);
+      publishToRelay(code, syncPayload);
+    }
+  } else if (msg.type === "ROOM_SYNC" && msg.room) {
+    if (!STATE.isHost) {
+      onRoomDataChanged(msg.room);
+      if (msg.playback) {
+        syncPartnerPlayback(msg.playback);
+      }
+    }
+  } else if (msg.type === "PLAYBACK_UPDATE" && msg.playback) {
+    if (!STATE.isHost) {
+      if (STATE.roomData) STATE.roomData.playback = msg.playback;
+      syncPartnerPlayback(msg.playback);
+    }
+  } else if (msg.type === "SONG_UPDATE" && msg.song) {
+    if (!STATE.isHost) {
+      loadSong(msg.song);
+      if (msg.playback) syncPartnerPlayback(msg.playback);
+    }
+  } else if (msg.type === "PLAYLIST_UPDATE") {
+    if (!STATE.isHost) {
+      if (msg.playlist) {
+        STATE.roomData.playlist = msg.playlist.map(normalizeSong);
+        renderPlaylistUI();
+      }
+      if (msg.song) loadSong(msg.song);
+      if (msg.playback) syncPartnerPlayback(msg.playback);
+    }
+  } else if (msg.type === "HOST_LEFT") {
+    if (!STATE.isHost) {
+      openModal(DOM.modalHostLeft);
+    }
+  }
 }
 
 function listenToRoomRelay(roomCode) {
@@ -897,7 +1363,12 @@ function listenToRoomRelay(roomCode) {
     } catch (e) {}
     STATE.relayEventSource = null;
   }
+  if (STATE.relayPollInterval) {
+    clearInterval(STATE.relayPollInterval);
+    STATE.relayPollInterval = null;
+  }
 
+  // 1. Primary Live SSE Stream
   try {
     const sseUrl = `${getRelayTopicUrl(code)}/sse`;
     const es = new EventSource(sseUrl);
@@ -909,89 +1380,35 @@ function listenToRoomRelay(roomCode) {
         const raw = JSON.parse(event.data);
         if (raw.event !== "message" || !raw.message) return;
         const msg = JSON.parse(raw.message);
-        if (!msg || msg.roomCode !== code) return;
-        if (msg.senderId && msg.senderId === STATE.userId) return; // Ignore own echoes
-
-        if (msg.type === "PARTNER_JOINED") {
-          if (STATE.isHost) {
-            showToast(`${msg.partnerName || "Partner"} joined the room!`, "success");
-            if (STATE.roomData) {
-              STATE.roomData.partnerId = msg.partnerId;
-              STATE.roomData.partnerName = msg.partnerName;
-              if (!STATE.roomData.members) STATE.roomData.members = {};
-              STATE.roomData.members.partner = {
-                id: msg.partnerId,
-                name: msg.partnerName || "Partner",
-                status: "Connected"
-              };
-              renderRoomMembers(STATE.roomData);
-
-              // Host sends back synchronized room state
-              publishToRelay(code, {
-                type: "ROOM_SYNC",
-                roomCode: code,
-                room: STATE.roomData,
-                playback: {
-                  isPlaying: !DOM.audioElement.paused,
-                  position: DOM.audioElement.currentTime,
-                  updatedAt: Date.now()
-                },
-                senderId: STATE.userId
-              });
-            }
-          }
-        } else if (msg.type === "JOIN_REQUEST") {
-          if (STATE.isHost && STATE.roomData) {
-            publishToRelay(code, {
-              type: "ROOM_SYNC",
-              roomCode: code,
-              room: STATE.roomData,
-              playback: {
-                isPlaying: !DOM.audioElement.paused,
-                position: DOM.audioElement.currentTime,
-                updatedAt: Date.now()
-              },
-              senderId: STATE.userId
-            });
-          }
-        } else if (msg.type === "ROOM_SYNC" && msg.room) {
-          if (!STATE.isHost) {
-            onRoomDataChanged(msg.room);
-            if (msg.playback) {
-              syncPartnerPlayback(msg.playback);
-            }
-          }
-        } else if (msg.type === "PLAYBACK_UPDATE" && msg.playback) {
-          if (!STATE.isHost) {
-            if (STATE.roomData) STATE.roomData.playback = msg.playback;
-            syncPartnerPlayback(msg.playback);
-          }
-        } else if (msg.type === "SONG_UPDATE" && msg.song) {
-          if (!STATE.isHost) {
-            loadSong(msg.song);
-            if (msg.playback) syncPartnerPlayback(msg.playback);
-          }
-        } else if (msg.type === "PLAYLIST_UPDATE") {
-          if (!STATE.isHost) {
-            if (msg.playlist) {
-              STATE.roomData.playlist = msg.playlist.map(normalizeSong);
-              renderPlaylistUI();
-            }
-            if (msg.song) loadSong(msg.song);
-            if (msg.playback) syncPartnerPlayback(msg.playback);
-          }
-        } else if (msg.type === "HOST_LEFT") {
-          if (!STATE.isHost) {
-            openModal(DOM.modalHostLeft);
-          }
-        }
+        if (msg) handleRelayIncomingMessage(code, msg);
       } catch (err) {
         console.warn("[Serverless Relay] Parse note:", err);
       }
     };
+
+    es.onerror = () => {
+      // Mobile network might close SSE; polling fallback continues seamlessly
+    };
   } catch (err) {
     console.warn("[Serverless Relay] EventSource setup note:", err);
   }
+
+  // 2. Active Fallback Polling (ensures delivery even if mobile carrier restricts SSE)
+  STATE.relayPollInterval = setInterval(async () => {
+    if (STATE.currentRoomCode !== code) return;
+    try {
+      const pollUrl = `${getRelayTopicUrl(code)}/json?poll=1&since=20s`;
+      const res = await fetch(pollUrl, { cache: "no-store", mode: "cors" });
+      if (res.ok) {
+        const text = await res.text();
+        const records = parseConcatenatedJson(text);
+        for (const rec of records) {
+          const msg = extractRelayPayload(rec);
+          if (msg) handleRelayIncomingMessage(code, msg);
+        }
+      }
+    } catch (e) {}
+  }, 2500);
 }
 
 function startHostRelayHeartbeat(roomCode) {
@@ -999,7 +1416,7 @@ function startHostRelayHeartbeat(roomCode) {
   const code = (roomCode || "").trim().toUpperCase();
   STATE.relayHeartbeatInterval = setInterval(() => {
     if (!STATE.isHost || !STATE.roomData || STATE.currentRoomCode !== code) return;
-    publishToRelay(code, {
+    const heartbeatPayload = {
       type: "ROOM_SYNC",
       roomCode: code,
       room: STATE.roomData,
@@ -1009,8 +1426,10 @@ function startHostRelayHeartbeat(roomCode) {
         updatedAt: Date.now()
       },
       senderId: STATE.userId
-    });
-  }, 12000);
+    };
+    broadcastToPeers(heartbeatPayload);
+    publishToRelay(code, heartbeatPayload);
+  }, 4000);
 }
 
 // Handle cross-tab messages in Demo Mode
@@ -1084,16 +1503,61 @@ async function createRoom() {
   // Cache room data in application state
   STATE.roomData = initialRoomData;
 
-  // Save room to backend server so other devices can join immediately
-  try {
-    await fetch("/api/rooms", {
+  // Local persistence for dual-tab demo
+  localStorage.setItem(`couples_room_${roomCode}`, JSON.stringify(initialRoomData));
+  if (STATE.broadcastChannel) {
+    STATE.broadcastChannel.postMessage({
+      type: "ROOM_CREATED",
+      roomCode,
+      payload: initialRoomData,
+      senderId: STATE.userId
+    });
+  }
+
+  // Initialize WebRTC PeerJS Host immediately for direct phone-to-phone WebRTC sync
+  initPeerHost(roomCode);
+
+  // Publish room to Serverless Cloud Relay IMMEDIATELY (guarantees cross-device sync on GitHub Pages)
+  await publishToRelay(roomCode, {
+    type: "ROOM_CREATED",
+    roomCode: roomCode,
+    room: initialRoomData,
+    senderId: STATE.userId
+  });
+
+  // Re-broadcast after short intervals to ensure receipt on mobile LTE
+  setTimeout(() => {
+    if (STATE.isHost && STATE.currentRoomCode === roomCode && STATE.roomData) {
+      publishToRelay(roomCode, {
+        type: "ROOM_CREATED",
+        roomCode: roomCode,
+        room: STATE.roomData,
+        senderId: STATE.userId
+      });
+    }
+  }, 400);
+
+  setTimeout(() => {
+    if (STATE.isHost && STATE.currentRoomCode === roomCode && STATE.roomData) {
+      publishToRelay(roomCode, {
+        type: "ROOM_CREATED",
+        roomCode: roomCode,
+        room: STATE.roomData,
+        senderId: STATE.userId
+      });
+    }
+  }, 1200);
+
+  listenToRoomRelay(roomCode);
+  startHostRelayHeartbeat(roomCode);
+
+  // Save room to backend server in background if available
+  if (STATE.serverAvailable && !STATE.isStaticHosting) {
+    fetch("/api/rooms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(initialRoomData)
-    });
-    console.log(`[Host] Room ${roomCode} created and stored on server.`);
-  } catch (err) {
-    console.warn("Server room create note:", err);
+    }).catch(() => {});
   }
 
   if (isFirebaseConfigured() && STATE.database && firebaseSDK) {
@@ -1106,36 +1570,12 @@ async function createRoom() {
       firebaseSDK.onDisconnect(hostPresenceRef).set("Disconnected");
     } catch (e) {
       console.error("Firebase create room error:", e);
-      showToast("Error creating room on Firebase: " + e.message, "error");
-      return;
-    }
-  } else {
-    // Local persistence
-    localStorage.setItem(`couples_room_${roomCode}`, JSON.stringify(initialRoomData));
-    if (STATE.broadcastChannel) {
-      STATE.broadcastChannel.postMessage({
-        type: "ROOM_CREATED",
-        roomCode,
-        payload: initialRoomData,
-        senderId: STATE.userId
-      });
     }
   }
 
-  // Publish room to Serverless Cloud Relay (guarantees cross-device sync on GitHub Pages)
-  publishToRelay(roomCode, {
-    type: "ROOM_CREATED",
-    roomCode: roomCode,
-    room: initialRoomData,
-    senderId: STATE.userId
-  });
-
-  listenToRoomRelay(roomCode);
-  startHostRelayHeartbeat(roomCode);
-
   // Update UI Elements
   DOM.createdRoomCode.textContent = roomCode;
-  const directLink = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+  const directLink = `${window.location.origin}${window.location.pathname}?room=${roomCode}&host=${encodeURIComponent(hostName)}`;
   DOM.shareLinkInput.value = directLink;
 
   showScreen("CREATE_ROOM");
@@ -1182,39 +1622,93 @@ async function joinRoom(codeToJoin) {
     let roomData = null;
     let isHostRejoining = false;
 
-    // 1. Join room via backend server (works across phones, tablets, PCs, multi-network)
-    try {
-      const res = await fetch(`/api/rooms/${code}/join`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          partnerId: STATE.userId,
-          partnerName: partnerName
-        })
-      });
+    // 1. Join room via backend server if running Node fullstack
+    if (STATE.serverAvailable && !STATE.isStaticHosting) {
+      try {
+        const res = await fetch(`/api/rooms/${code}/join`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            partnerId: STATE.userId,
+            partnerName: partnerName
+          })
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.room) {
-          roomData = data.room;
-          if (data.isHost) {
-            isHostRejoining = true;
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.room) {
+            roomData = data.room;
+            if (data.isHost) isHostRejoining = true;
           }
         }
-      } else {
-        const errData = await res.json().catch(() => null);
-        console.warn("Backend join response not ok (may be static hosting):", res.status, errData);
-      }
-    } catch (e) {
-      console.warn("Backend join request error (static hosting mode):", e);
+      } catch (e) {}
     }
 
-    // 2. Query Serverless Cloud Relay (crucial for GitHub Pages & cross-device static hosting)
+    // 2. Multi-Path Serverless Discovery for GitHub Pages (Live Handshake + Relay Poll + WebRTC P2P)
     if (!roomData) {
-      try {
-        roomData = await queryRoomFromRelay(code);
-      } catch (e) {
-        console.warn("Serverless relay query note:", e);
+      if (DOM.btnSubmitJoin) {
+        DOM.btnSubmitJoin.textContent = "Discovering Room...";
+      }
+
+      // Live handshake promise: resolves as soon as ANY incoming message on this room code arrives via SSE or Poll
+      const liveHandshakePromise = new Promise((resolve) => {
+        registerPendingRoomResolver(code, resolve);
+      });
+
+      // Connect to relay SSE & Polling stream immediately to receive live broadcasts from host
+      listenToRoomRelay(code);
+
+      // Prompt host to reply immediately
+      publishToRelay(code, {
+        type: "JOIN_REQUEST",
+        roomCode: code,
+        partnerId: STATE.userId,
+        partnerName: partnerName,
+        senderId: STATE.userId
+      });
+
+      // Repeat JOIN_REQUEST at 500ms and 1500ms
+      setTimeout(() => {
+        if (!roomData && isJoiningInProgress) {
+          publishToRelay(code, {
+            type: "JOIN_REQUEST",
+            roomCode: code,
+            partnerId: STATE.userId,
+            partnerName: partnerName,
+            senderId: STATE.userId
+          });
+        }
+      }, 500);
+
+      setTimeout(() => {
+        if (!roomData && isJoiningInProgress) {
+          publishToRelay(code, {
+            type: "JOIN_REQUEST",
+            roomCode: code,
+            partnerId: STATE.userId,
+            partnerName: partnerName,
+            senderId: STATE.userId
+          });
+        }
+      }, 1500);
+
+      // Start WebRTC direct connection in parallel
+      const peerPromise = connectToPeerHost(code);
+
+      // Start Cloud Relay query in parallel
+      const relayPromise = queryRoomFromRelay(code);
+
+      // Wait for whichever resolves first with valid data
+      const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 6500));
+      roomData = await Promise.race([
+        liveHandshakePromise,
+        relayPromise.then((r) => (r ? r : new Promise(() => {}))),
+        peerPromise.then((r) => (r ? r : new Promise(() => {}))),
+        timeout
+      ]);
+
+      if (!roomData) {
+        roomData = (await relayPromise) || (await peerPromise);
       }
     }
 
@@ -1231,7 +1725,7 @@ async function joinRoom(codeToJoin) {
       }
     }
 
-    // 3. Query local storage (same-device multi-tab fallback)
+    // 4. Query local storage (same-device multi-tab fallback)
     if (!roomData) {
       const rawStored = localStorage.getItem(`couples_room_${code}`);
       if (rawStored) {
@@ -1241,9 +1735,43 @@ async function joinRoom(codeToJoin) {
       }
     }
 
+    // 5. Direct Link Host Bootstrap fallback (if link opened on partner's phone has ?room=CODE&host=NAME)
+    if (!roomData) {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlHostName = urlParams.get("host") || urlParams.get("h");
+        const linkRoom = (urlParams.get("room") || urlParams.get("code") || "").toUpperCase();
+        if (urlHostName && linkRoom === code) {
+          console.log(`[Join] Utilizing link metadata bootstrap for host "${urlHostName}"`);
+          const defaultSong = CURATED_PLAYLIST[0];
+          const initialPlaylist = CURATED_PLAYLIST.map((song, i) => ({
+            ...song,
+            id: "preset_" + i,
+            source: "preset"
+          }));
+          roomData = {
+            roomCode: code,
+            hostId: "host_" + code,
+            hostName: decodeURIComponent(urlHostName),
+            partnerId: STATE.userId,
+            partnerName: partnerName,
+            createdAt: Date.now(),
+            lastActiveAt: Date.now(),
+            members: {
+              host: { id: "host_" + code, name: decodeURIComponent(urlHostName), status: "Connected" },
+              partner: { id: STATE.userId, name: partnerName, status: "Connected" }
+            },
+            playlist: initialPlaylist,
+            song: defaultSong,
+            playback: { isPlaying: false, position: 0, updatedAt: Date.now() }
+          };
+        }
+      } catch (e) {}
+    }
+
     // Verification Rules
     if (!roomData) {
-      showJoinError(`Room "${code}" not found.\nPlease verify the 6-character room code.`);
+      showJoinError(`Room "${code}" was not found or is no longer active.\nPlease ensure the host has created the room and enter the exact 6-character code.`);
       return;
     }
 
