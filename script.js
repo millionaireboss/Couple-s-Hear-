@@ -134,7 +134,11 @@ const STATE = {
   storage: null,
   activeRoomUnsubscribe: null,
   activePresenceRef: null,
-  broadcastChannel: null
+  broadcastChannel: null,
+  serverAvailable: false,
+  isStaticHosting: false,
+  relayEventSource: null,
+  relayHeartbeatInterval: null
 };
 
 // Generate random unique ID per browser session
@@ -481,6 +485,13 @@ async function teardownRoomSession(notify = true) {
         localStorage.removeItem(`couples_room_${code}`);
       }
     }
+
+    // Notify serverless relay that user left
+    publishToRelay(code, {
+      type: STATE.isHost ? "HOST_LEFT" : "PARTNER_LEFT",
+      roomCode: code,
+      senderId: STATE.userId
+    });
   }
 
   // Reset audio
@@ -491,6 +502,16 @@ async function teardownRoomSession(notify = true) {
   if (STATE.eventSource) {
     STATE.eventSource.close();
     STATE.eventSource = null;
+  }
+  if (STATE.relayEventSource) {
+    try {
+      STATE.relayEventSource.close();
+    } catch (e) {}
+    STATE.relayEventSource = null;
+  }
+  if (STATE.relayHeartbeatInterval) {
+    clearInterval(STATE.relayHeartbeatInterval);
+    STATE.relayHeartbeatInterval = null;
   }
   if (STATE.syncInterval) clearInterval(STATE.syncInterval);
   if (STATE.driftCorrectionInterval) clearInterval(STATE.driftCorrectionInterval);
@@ -762,6 +783,7 @@ async function initSyncEngine() {
     const healthRes = await fetch("/api/health");
     if (healthRes.ok) {
       STATE.serverAvailable = true;
+      STATE.isStaticHosting = false;
       if (DOM.backendBannerText) {
         DOM.backendBannerText.textContent = "● Live Sync Server Connected • Cross-device room sync active";
       }
@@ -772,10 +794,223 @@ async function initSyncEngine() {
       return;
     }
   } catch (e) {
-    console.warn("Server health check note:", e);
+    console.warn("Server health check note (static hosting mode):", e);
   }
 
-  DOM.backendBannerText.textContent = "Local Dual-Tab Sync Mode Active";
+  // Running on static hosting (e.g. GitHub Pages) without Node.js backend
+  STATE.serverAvailable = false;
+  STATE.isStaticHosting = true;
+  if (DOM.backendBannerText) {
+    DOM.backendBannerText.textContent = "● Cloud Relay Active • Cross-device room sync ready (GitHub Pages)";
+  }
+  if (DOM.connectionStatusText) {
+    DOM.connectionStatusText.textContent = "CLOUD RELAY";
+  }
+  console.log("Static hosting detected (GitHub Pages) - Serverless Cloud Relay active.");
+}
+
+// =========================================================================
+// SERVERLESS REAL-TIME CLOUD RELAY (Enables Cross-Device Sync on GitHub Pages)
+// =========================================================================
+function getRelayTopicUrl(roomCode) {
+  const code = (roomCode || "").trim().toUpperCase();
+  return `https://ntfy.sh/coupleshear_v2_${code}`;
+}
+
+async function publishToRelay(roomCode, payload) {
+  if (!roomCode) return;
+  try {
+    const url = getRelayTopicUrl(roomCode);
+    const bodyStr = JSON.stringify(payload);
+    await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Title": payload.type || "CouplesHearSync"
+      },
+      body: bodyStr,
+      mode: "cors"
+    });
+  } catch (err) {
+    console.warn("[Serverless Relay] Publish note:", err);
+  }
+}
+
+async function queryRoomFromRelay(roomCode) {
+  const code = (roomCode || "").trim().toUpperCase();
+  const url = `${getRelayTopicUrl(code)}/json?poll=1&since=all`;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const res = await fetch(url, { mode: "cors", cache: "no-store" });
+      if (res.ok) {
+        const text = await res.text();
+        const lines = text.trim().split("\n").filter(Boolean);
+        const msgs = lines
+          .map((l) => {
+            try {
+              const p = JSON.parse(l);
+              return p.message ? JSON.parse(p.message) : p;
+            } catch (e) {
+              return null;
+            }
+          })
+          .filter(Boolean);
+
+        const match = msgs
+          .reverse()
+          .find(
+            (m) =>
+              (m.type === "ROOM_CREATED" || m.type === "ROOM_SYNC" || m.type === "ROOM_STATE") &&
+              m.room &&
+              m.roomCode === code
+          );
+        if (match && match.room) {
+          console.log(`[Serverless Relay] Room ${code} discovered on relay!`);
+          return match.room;
+        }
+      }
+    } catch (e) {
+      console.warn("[Serverless Relay] Query attempt error:", e);
+    }
+    // Also broadcast a join request on subsequent attempts to ask host to send state
+    if (attempt === 1) {
+      publishToRelay(code, {
+        type: "JOIN_REQUEST",
+        roomCode: code,
+        partnerId: STATE.userId,
+        senderId: STATE.userId
+      });
+    }
+    await new Promise((r) => setTimeout(r, 350));
+  }
+  return null;
+}
+
+function listenToRoomRelay(roomCode) {
+  const code = (roomCode || "").trim().toUpperCase();
+  if (!code) return;
+
+  if (STATE.relayEventSource) {
+    try {
+      STATE.relayEventSource.close();
+    } catch (e) {}
+    STATE.relayEventSource = null;
+  }
+
+  try {
+    const sseUrl = `${getRelayTopicUrl(code)}/sse`;
+    const es = new EventSource(sseUrl);
+    STATE.relayEventSource = es;
+
+    es.onmessage = (event) => {
+      if (!event.data) return;
+      try {
+        const raw = JSON.parse(event.data);
+        if (raw.event !== "message" || !raw.message) return;
+        const msg = JSON.parse(raw.message);
+        if (!msg || msg.roomCode !== code) return;
+        if (msg.senderId && msg.senderId === STATE.userId) return; // Ignore own echoes
+
+        if (msg.type === "PARTNER_JOINED") {
+          if (STATE.isHost) {
+            showToast(`${msg.partnerName || "Partner"} joined the room!`, "success");
+            if (STATE.roomData) {
+              STATE.roomData.partnerId = msg.partnerId;
+              STATE.roomData.partnerName = msg.partnerName;
+              if (!STATE.roomData.members) STATE.roomData.members = {};
+              STATE.roomData.members.partner = {
+                id: msg.partnerId,
+                name: msg.partnerName || "Partner",
+                status: "Connected"
+              };
+              renderRoomMembers(STATE.roomData);
+
+              // Host sends back synchronized room state
+              publishToRelay(code, {
+                type: "ROOM_SYNC",
+                roomCode: code,
+                room: STATE.roomData,
+                playback: {
+                  isPlaying: !DOM.audioElement.paused,
+                  position: DOM.audioElement.currentTime,
+                  updatedAt: Date.now()
+                },
+                senderId: STATE.userId
+              });
+            }
+          }
+        } else if (msg.type === "JOIN_REQUEST") {
+          if (STATE.isHost && STATE.roomData) {
+            publishToRelay(code, {
+              type: "ROOM_SYNC",
+              roomCode: code,
+              room: STATE.roomData,
+              playback: {
+                isPlaying: !DOM.audioElement.paused,
+                position: DOM.audioElement.currentTime,
+                updatedAt: Date.now()
+              },
+              senderId: STATE.userId
+            });
+          }
+        } else if (msg.type === "ROOM_SYNC" && msg.room) {
+          if (!STATE.isHost) {
+            onRoomDataChanged(msg.room);
+            if (msg.playback) {
+              syncPartnerPlayback(msg.playback);
+            }
+          }
+        } else if (msg.type === "PLAYBACK_UPDATE" && msg.playback) {
+          if (!STATE.isHost) {
+            if (STATE.roomData) STATE.roomData.playback = msg.playback;
+            syncPartnerPlayback(msg.playback);
+          }
+        } else if (msg.type === "SONG_UPDATE" && msg.song) {
+          if (!STATE.isHost) {
+            loadSong(msg.song);
+            if (msg.playback) syncPartnerPlayback(msg.playback);
+          }
+        } else if (msg.type === "PLAYLIST_UPDATE") {
+          if (!STATE.isHost) {
+            if (msg.playlist) {
+              STATE.roomData.playlist = msg.playlist.map(normalizeSong);
+              renderPlaylistUI();
+            }
+            if (msg.song) loadSong(msg.song);
+            if (msg.playback) syncPartnerPlayback(msg.playback);
+          }
+        } else if (msg.type === "HOST_LEFT") {
+          if (!STATE.isHost) {
+            openModal(DOM.modalHostLeft);
+          }
+        }
+      } catch (err) {
+        console.warn("[Serverless Relay] Parse note:", err);
+      }
+    };
+  } catch (err) {
+    console.warn("[Serverless Relay] EventSource setup note:", err);
+  }
+}
+
+function startHostRelayHeartbeat(roomCode) {
+  if (STATE.relayHeartbeatInterval) clearInterval(STATE.relayHeartbeatInterval);
+  const code = (roomCode || "").trim().toUpperCase();
+  STATE.relayHeartbeatInterval = setInterval(() => {
+    if (!STATE.isHost || !STATE.roomData || STATE.currentRoomCode !== code) return;
+    publishToRelay(code, {
+      type: "ROOM_SYNC",
+      roomCode: code,
+      room: STATE.roomData,
+      playback: {
+        isPlaying: !DOM.audioElement.paused,
+        position: DOM.audioElement.currentTime,
+        updatedAt: Date.now()
+      },
+      senderId: STATE.userId
+    });
+  }, 12000);
 }
 
 // Handle cross-tab messages in Demo Mode
@@ -887,6 +1122,17 @@ async function createRoom() {
     }
   }
 
+  // Publish room to Serverless Cloud Relay (guarantees cross-device sync on GitHub Pages)
+  publishToRelay(roomCode, {
+    type: "ROOM_CREATED",
+    roomCode: roomCode,
+    room: initialRoomData,
+    senderId: STATE.userId
+  });
+
+  listenToRoomRelay(roomCode);
+  startHostRelayHeartbeat(roomCode);
+
   // Update UI Elements
   DOM.createdRoomCode.textContent = roomCode;
   const directLink = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
@@ -957,13 +1203,22 @@ async function joinRoom(codeToJoin) {
         }
       } else {
         const errData = await res.json().catch(() => null);
-        console.warn("Backend join response not ok:", res.status, errData);
+        console.warn("Backend join response not ok (may be static hosting):", res.status, errData);
       }
     } catch (e) {
-      console.warn("Backend join request error:", e);
+      console.warn("Backend join request error (static hosting mode):", e);
     }
 
-    // 2. Query Firebase if configured
+    // 2. Query Serverless Cloud Relay (crucial for GitHub Pages & cross-device static hosting)
+    if (!roomData) {
+      try {
+        roomData = await queryRoomFromRelay(code);
+      } catch (e) {
+        console.warn("Serverless relay query note:", e);
+      }
+    }
+
+    // 3. Query Firebase if configured
     if (!roomData && isFirebaseConfigured() && STATE.database && firebaseSDK) {
       try {
         const roomRef = firebaseSDK.ref(STATE.database, `rooms/${code}`);
@@ -1039,6 +1294,22 @@ async function joinRoom(codeToJoin) {
           });
         }
       }
+
+      // Publish join event to Serverless Relay for cross-device & GitHub Pages support
+      publishToRelay(code, {
+        type: "PARTNER_JOINED",
+        roomCode: code,
+        partnerId: STATE.userId,
+        partnerName: partnerName,
+        senderId: STATE.userId
+      });
+
+      publishToRelay(code, {
+        type: "ROOM_SYNC",
+        roomCode: code,
+        room: roomData,
+        senderId: STATE.userId
+      });
     }
 
     enterActiveRoom(roomData);
@@ -1238,10 +1509,16 @@ function listenToRoom(roomCode) {
     };
 
     es.onerror = (e) => {
-      console.warn("SSE stream notice:", e);
+      console.warn("Backend SSE stream notice (using Serverless Relay):", e);
     };
   } catch (err) {
     console.warn("EventSource setup warning:", err);
+  }
+
+  // Connect to Serverless Cloud Relay SSE (works across devices on GitHub Pages & static hosting)
+  listenToRoomRelay(roomCode);
+  if (STATE.isHost) {
+    startHostRelayHeartbeat(roomCode);
   }
 
   if (isFirebaseConfigured() && STATE.database && firebaseSDK) {
@@ -1537,6 +1814,14 @@ async function updatePlaybackState(isPlaying, position) {
       })
     }).catch(() => {});
   } catch (e) {}
+
+  // Broadcast to Serverless Cloud Relay (ensures real-time sync on GitHub Pages)
+  publishToRelay(STATE.currentRoomCode, {
+    type: "PLAYBACK_UPDATE",
+    roomCode: STATE.currentRoomCode,
+    playback: playbackObj,
+    senderId: STATE.userId
+  });
 
   if (isFirebaseConfigured() && STATE.database && firebaseSDK) {
     try {
@@ -2034,10 +2319,21 @@ async function syncRoomPlaylist(newPlaylist, newSong, autoPlay = false) {
       body: JSON.stringify({
         playlist: STATE.roomData.playlist,
         song: newSong ? STATE.roomData.song : undefined,
+        playback: newSong ? STATE.roomData.playback : undefined,
         senderId: STATE.userId
       })
     }).catch(() => {});
   } catch (e) {}
+
+  // Broadcast playlist and song to Serverless Cloud Relay (GitHub Pages mode)
+  publishToRelay(STATE.currentRoomCode, {
+    type: "PLAYLIST_UPDATE",
+    roomCode: STATE.currentRoomCode,
+    playlist: STATE.roomData.playlist,
+    song: newSong ? STATE.roomData.song : undefined,
+    playback: newSong ? STATE.roomData.playback : undefined,
+    senderId: STATE.userId
+  });
 
   if (isFirebaseConfigured() && STATE.database && firebaseSDK) {
     try {
