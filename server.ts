@@ -46,6 +46,41 @@ interface RoomData {
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+// In-memory room store & active SSE client subscribers
+const rooms = new Map<string, RoomData>();
+const subscribers = new Map<string, Set<express.Response>>();
+const roomsFilePath = path.join(process.cwd(), "rooms_store.json");
+
+function loadStoredRooms() {
+  try {
+    if (fs.existsSync(roomsFilePath)) {
+      const data = fs.readFileSync(roomsFilePath, "utf-8");
+      const obj = JSON.parse(data);
+      for (const [k, v] of Object.entries(obj)) {
+        rooms.set(k, v as RoomData);
+      }
+      console.log(`[Store] Loaded ${rooms.size} persistent rooms from disk.`);
+    }
+  } catch (err) {
+    console.warn("[Store] Error loading rooms from disk:", err);
+  }
+}
+
+function persistRooms() {
+  try {
+    const obj: Record<string, RoomData> = {};
+    for (const [k, v] of rooms.entries()) {
+      obj[k] = v;
+    }
+    fs.writeFileSync(roomsFilePath, JSON.stringify(obj, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("[Store] Error persisting rooms to disk:", err);
+  }
+}
+
+// Load existing rooms on module initialization
+loadStoredRooms();
+
 // Health check endpoint for Cloud Run and container liveness probes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", activeRooms: rooms.size, timestamp: Date.now() });
@@ -117,41 +152,6 @@ app.use((req, res, next) => {
 app.use(express.static(publicDir));
 
 app.use(express.json({ limit: "25mb" }));
-
-// In-memory room store & active SSE client subscribers
-const rooms = new Map<string, RoomData>();
-const subscribers = new Map<string, Set<express.Response>>();
-const roomsFilePath = path.join(process.cwd(), "rooms_store.json");
-
-function loadStoredRooms() {
-  try {
-    if (fs.existsSync(roomsFilePath)) {
-      const data = fs.readFileSync(roomsFilePath, "utf-8");
-      const obj = JSON.parse(data);
-      for (const [k, v] of Object.entries(obj)) {
-        rooms.set(k, v as RoomData);
-      }
-      console.log(`[Store] Loaded ${rooms.size} persistent rooms from disk.`);
-    }
-  } catch (err) {
-    console.warn("[Store] Error loading rooms from disk:", err);
-  }
-}
-
-function persistRooms() {
-  try {
-    const obj: Record<string, RoomData> = {};
-    for (const [k, v] of rooms.entries()) {
-      obj[k] = v;
-    }
-    fs.writeFileSync(roomsFilePath, JSON.stringify(obj, null, 2), "utf-8");
-  } catch (err) {
-    console.warn("[Store] Error persisting rooms to disk:", err);
-  }
-}
-
-// Load existing rooms on module initialization
-loadStoredRooms();
 
 function getOrCreateSubscribers(roomCode: string): Set<express.Response> {
   const code = roomCode.toUpperCase();

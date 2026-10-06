@@ -105,5 +105,34 @@
     "lastActiveAt": 1791112616536,
     "partnerId": "p1",
     "partnerName": "PartnerSam"
+  },
+  "VERIFY": {
+    "roomCode": "VERIFY",
+    "hostId": "h_test",
+    "hostName": "Tester",
+    "members": {
+      "host": {
+        "id": "h_test",
+        "name": "Tester",
+        "status": "Connected"
+      },
+      "partner": {
+        "id": "p_test",
+        "name": "Partner",
+        "status": "Connected"
+      }
+    },
+    "playlist": [],
+    "song": {
+      "title": "T"
+    },
+    "playback": {
+      "isPlaying": false,
+      "position": 0
+    },
+    "createdAt": 1791300250497,
+    "lastActiveAt": 1791300250502,
+    "partnerId": "p_test",
+    "partnerName": "Partner"
   }
 }

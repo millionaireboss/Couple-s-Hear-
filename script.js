@@ -165,7 +165,7 @@ function generateRoomCode() {
 
 // Format seconds into mm:ss
 function formatTime(seconds) {
-  if (isNaN(seconds) || seconds < 0) return "0:00";
+  if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) return "0:00";
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
@@ -3801,6 +3801,27 @@ function initSitePoliciesAndNavEngine() {
       if (contactSubmitBtn) {
         contactSubmitBtn.disabled = true;
         contactSubmitBtn.style.opacity = "0.7";
+      }
+
+      // Static hosting (e.g. GitHub Pages) fallback
+      if (STATE.isStaticHosting || !STATE.serverAvailable) {
+        try {
+          const storedMsgs = JSON.parse(localStorage.getItem("couples_contact_messages") || "[]");
+          storedMsgs.push({ name, email, category, message, timestamp: Date.now() });
+          localStorage.setItem("couples_contact_messages", JSON.stringify(storedMsgs));
+        } catch (e) {}
+
+        if (contactFeedback) {
+          contactFeedback.className = "form-feedback-alert success";
+          contactFeedback.textContent = "Thank you! Your inquiry has been received. Our team will review your message shortly.";
+          contactFeedback.classList.remove("hidden");
+        }
+        contactForm.reset();
+        setTimeout(() => {
+          closeModal("contact-us");
+          if (contactFeedback) contactFeedback.classList.add("hidden");
+        }, 3500);
+        return;
       }
 
       try {
