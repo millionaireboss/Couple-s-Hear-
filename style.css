@@ -147,8 +147,9 @@ html, body {
 .landing-screen.fade-out {
   opacity: 0;
   transform: scale(1.04);
-  pointer-events: none;
-  visibility: hidden;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  display: none !important;
 }
 
 .landing-content {

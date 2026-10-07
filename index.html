@@ -168,10 +168,37 @@
     </div>
   </aside>
 
+  <!-- Inline Fail-Safe Navigation Helper (Guarantees landing screen dismisses instantly on tap even if external scripts load slowly) -->
+  <script>
+    window.enterCoupleApp = function(e) {
+      if (e && e.target && e.target.closest && e.target.closest("a, input, select, textarea, [data-open-modal], .landing-top-bar, #btn-landing-install")) {
+        return;
+      }
+      var landing = document.getElementById("landing-screen");
+      var wrapper = document.getElementById("app-wrapper");
+      var home = document.getElementById("home-screen");
+      if (landing) {
+        landing.classList.add("fade-out");
+        landing.classList.remove("active");
+        setTimeout(function() {
+          if (landing) landing.style.display = "none";
+        }, 300);
+      }
+      if (wrapper) wrapper.classList.remove("hidden");
+      if (home) {
+        home.classList.remove("hidden");
+        home.classList.add("active");
+      }
+      if (window.showScreen) {
+        try { window.showScreen("HOME"); } catch(err) {}
+      }
+    };
+  </script>
+
   <!-- ==================== 1. LANDING SCREEN ==================== -->
-  <section id="landing-screen" class="screen landing-screen active">
+  <section id="landing-screen" class="screen landing-screen active" onclick="window.enterCoupleApp(event)">
     <!-- Top Bar with Install Button at the top of landing screen -->
-    <div class="landing-top-bar">
+    <div class="landing-top-bar" onclick="event.stopPropagation()">
       <div class="landing-top-brand">
         <span class="brand-sub-badge">PWA &bull; STANDALONE APP</span>
       </div>
@@ -198,7 +225,7 @@
       <p class="landing-subtitle">Listen together, even when you're apart.</p>
 
       <div class="landing-bottom">
-        <button id="btn-enter-app" class="landing-tap-btn" aria-label="Tap to Hear Couples">
+        <button id="btn-enter-app" class="landing-tap-btn" onclick="event.stopPropagation(); window.enterCoupleApp();" aria-label="Tap to Hear Couples">
           <span class="pulse-ring"></span>
           <span class="btn-text">TAP TO HEAR COUPLES</span>
           <svg class="icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

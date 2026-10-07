@@ -1,5 +1,3 @@
-import { Peer } from "peerjs";
-
 /**
  * COUPLE’S HEAR - Core Application Engine
  * Real-time Synchronized Music Listening Application for Couples
@@ -544,7 +542,9 @@ function showScreen(screenName, options = {}) {
   document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((el) => {
     el.classList.add("hidden");
   });
-  document.body.style.overflow = "";
+  if (document.body) {
+    document.body.style.overflow = "";
+  }
   STATE.activeModal = null;
 
   // If leaving ROOM and room is active, cleanly tear down room session if moving elsewhere
@@ -781,10 +781,11 @@ async function initSyncEngine() {
   STATE.broadcastChannel.onmessage = handleBroadcastMessage;
 
   // Running on static hosting (e.g. GitHub Pages) without Node.js backend
+  const hostname = (window.location && window.location.hostname) || "";
   const isGithubOrStatic =
-    window.location.hostname.includes("github.io") ||
-    window.location.hostname.includes("pages.dev") ||
-    window.location.protocol === "file:";
+    hostname.includes("github.io") ||
+    hostname.includes("pages.dev") ||
+    (window.location && window.location.protocol === "file:");
 
   if (!isGithubOrStatic) {
     try {
@@ -843,8 +844,8 @@ const PEER_STUN_CONFIG = {
 };
 
 function getPeerConstructor() {
-  if (typeof Peer !== "undefined") return Peer;
   if (typeof window !== "undefined" && window.Peer) return window.Peer;
+  if (typeof globalThis !== "undefined" && globalThis.Peer) return globalThis.Peer;
   return null;
 }
 
@@ -3378,18 +3379,38 @@ DOM.btnCalloutCopy.addEventListener("click", () => {
 // SECTION 13: UI EVENTS & MODAL CONTROLS
 // =========================================================================
 
-// Landing Page Tap to Enter
-DOM.landingScreen.addEventListener("click", (e) => {
-  if (e.target.closest("button, a, input, select, textarea, [data-open-modal], [data-target-action], .landing-top-bar")) {
-    return;
+// Landing Page Tap to Enter (Handles Desktop Click & Mobile Touch effortlessly)
+function handleEnterApp(e) {
+  if (e) {
+    if (e.target && e.target.closest && e.target.closest("a, input, select, textarea, [data-open-modal], [data-target-action], .landing-top-bar, #btn-landing-install")) {
+      return;
+    }
+    if (typeof e.stopPropagation === "function") {
+      e.stopPropagation();
+    }
+  }
+
+  if (DOM.landingScreen) {
+    DOM.landingScreen.classList.add("fade-out");
+    DOM.landingScreen.classList.remove("active");
+  }
+  if (DOM.appWrapper) {
+    DOM.appWrapper.classList.remove("hidden");
   }
   showScreen("HOME");
-});
+}
 
-DOM.btnEnterApp.addEventListener("click", (e) => {
-  e.stopPropagation();
-  showScreen("HOME");
-});
+window.enterCoupleApp = handleEnterApp;
+
+if (DOM.landingScreen) {
+  DOM.landingScreen.addEventListener("click", handleEnterApp);
+  DOM.landingScreen.addEventListener("touchend", handleEnterApp, { passive: true });
+}
+
+if (DOM.btnEnterApp) {
+  DOM.btnEnterApp.addEventListener("click", handleEnterApp);
+  DOM.btnEnterApp.addEventListener("touchend", handleEnterApp, { passive: true });
+}
 
 // Home Screen Action Cards
 DOM.cardCreateRoom.addEventListener("click", createRoom);
@@ -3635,6 +3656,7 @@ function bootstrapApp() {
     if (DOM.inputRoomCode) {
       DOM.inputRoomCode.value = directRoomCode;
     }
+    showScreen("JOIN_ROOM", { pushHistory: false });
     initSitePoliciesAndNavEngine();
     initPWAAppEngine();
     showToast(`Joining room ${directRoomCode}...`, "info");
@@ -3994,9 +4016,9 @@ function initPWAAppEngine() {
 
   // 3. Detect Standalone / Already Installed App Mode
   const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true ||
-    document.referrer.includes("android-app://");
+    (typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches) ||
+    Boolean(window.navigator && window.navigator["standalone"] === true) ||
+    Boolean(document.referrer && document.referrer.includes("android-app://"));
 
   if (isStandalone) {
     console.log("[PWA Engine] Running in native Standalone App mode.");
